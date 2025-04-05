@@ -1,0 +1,5 @@
+envs/
+yolov5xu_ncnn_model/
+
+*.pt
+*.torchscript
