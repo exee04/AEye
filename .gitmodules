@@ -1,3 +1,6 @@
 [submodule "AEyeProj/AEyeProj/HandRecog/hand-gesture-recognition-mediapipe"]
 	path = AEyeProj/AEyeProj/HandRecog/hand-gesture-recognition-mediapipe
 	url = https://github.com/kinivi/hand-gesture-recognition-mediapipe
+[submodule "AEyeProj/HandRecog/hand-gesture-recognition-mediapipe"]
+	path = AEyeProj/HandRecog/hand-gesture-recognition-mediapipe
+	url = https://github.com/kinivi/hand-gesture-recognition-mediapipe
