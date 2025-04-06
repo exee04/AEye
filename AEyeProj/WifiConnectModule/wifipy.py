@@ -77,8 +77,7 @@ def search_for_wifi():
     cv2.destroyAllWindows()
     return False
 
-# Run it
-if __name__ == "__main__":
+def runWifiModule():
     success = search_for_wifi()
     if success:
         print("[??] WiFi connection established!")
