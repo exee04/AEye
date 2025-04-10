@@ -5,6 +5,7 @@ from queue import Queue
 import yolo2
 import time
 import threading
+import subprocess
 
 #Button Initialization
 button1 = Button(17) #Func 1 button
@@ -33,27 +34,39 @@ def wait_button():
     return e.pin.number
 
 def educationMode():
+    TTS("Education Mode")
     print("running education mode")
     
 def scoreCheckMode():
+    TTS("Score Checking Mode")
     print("running score checking mode")
 
 def objectDetectMode():
+    TTS("Object Detection Mode")
     print("running object detection mode")
     
 def wifiConnectMode():
+    TTS("Wifi Connect Mode")
     print("running wifi connectivity mode")
 
 def distanceCheckMode():
+    TTS("Distance Check Mode")
     print("running distance mode")
     
 def batteryCheckMode():
+    TTS("Battery Check Mode")
     print("running battery checking mode")
+
+def TTS(text):
+    subprocess.run(['espeak-ng', text])
+    #subprocess.run(['festival', '--tts'], input=text.encode())
 
     
 def toggleFunction():
+    TTS("Changing Mode")
     global mainFunctionMode
     mainFunctionMode = not mainFunctionMode
+    TTS("Main Mode") if mainFunctionMode else TTS("Secondary Mode")
     print("Main Mode" if mainFunctionMode else "Secondary Mode")
     
 def vibrate():
@@ -67,6 +80,8 @@ def main():
     lastBut = 0
     while True:
         b = wait_button()
+        if b != lastBut or b == 23:
+            threading.Thread(target=vibrate).start()
         if b == 17 and b != lastBut:
             educationMode() if mainFunctionMode else scoreCheckMode()
         if b == 27 and b != lastBut:
@@ -76,8 +91,6 @@ def main():
         if b == 23:
             print("Changing Modes...")
             toggleFunction()
-        if b != lastBut or b == 23:
-            threading.Thread(target=vibrate).start()
         lastBut = b
         time.sleep(2)
 
