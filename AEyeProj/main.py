@@ -15,9 +15,10 @@ mainBtn = Button(24) #Main func button
 volUpBtn = Button(6) #Volume up button
 volDownBtn = Button(5) #Volume down button
 
+#Vibration Module Initialization
 vibrationModule = DigitalOutputDevice(16) #Vibration Module
+
 mainFunctionMode = True
-cooldown = False
 
 def wait_button():
     queue = Queue()
@@ -31,51 +32,23 @@ def wait_button():
     e = queue.get()
     return e.pin.number
 
-def function1():
-    button1.when_pressed = None
-    button2.when_pressed = function2
-    button3.when_pressed = function3
-    if mainFunctionMode:
-        print("run education mode")
-    else:
-        print("run score check mode")
-def function2():
-    button1.when_pressed = function1
-    button2.when_pressed = None
-    button3.when_pressed = function3
-    if mainFunctionMode:
-        print("run object detection mode")
-        #yolo2.startDetection()
-    else:
-        print("run wifi connectivity mode")
-        #wifipy.search_for_wifi()
-def function3():
-    button1.when_pressed = function1
-    button2.when_pressed = function2
-    button3.when_pressed = None
-    if mainFunctionMode:
-        print("run distance mode")
-    else:
-        print("battery check mode")
+def educationMode():
+    print("running education mode")
     
-def function4():
-    global cooldown
-    if cooldown:
-        return  # Ignore if still in cooldown
-    cooldown = True
-    button1.when_pressed = None
-    button2.when_pressed = None
-    button3.when_pressed = None
-    print("changing modes...")
-    toggleFunction()
-    def reset_cooldown():
-        time.sleep(2)
-        global cooldown
-        button1.when_pressed = function1
-        button2.when_pressed = function2
-        button3.when_pressed = function3
-        cooldown = False
-    threading.Thread(target=reset_cooldown).start()
+def scoreCheckMode():
+    print("running score checking mode")
+
+def objectDetectMode():
+    print("running object detection mode")
+    
+def wifiConnectMode():
+    print("running wifi connectivity mode")
+
+def distanceCheckMode():
+    print("running distance mode")
+    
+def batteryCheckMode():
+    print("running battery checking mode")
 
     
 def toggleFunction():
@@ -90,18 +63,23 @@ def vibrate():
 
 def main():
     print("System Running...")
+    lastBut = 0
     while True:
         b = wait_button()
-        if b == 17:
-            function1()
-        if b == 27:
-            function2()
-        if b == 22:
-            function3()
+        if b == 17 and b != lastBut:
+            educationMode() if mainFunctionMode else scoreCheckMode()
+        if b == 27 and b != lastBut:
+            objectDetectMode() if mainFunctionMode else wifiConnectMode()
+        if b == 22 and b != lastBut:
+            distanceCheckMode() if mainFunctionMode else batteryCheckMode()
         if b == 23:
-            function4()
-        threading.Thread(target=vibrate).start()
+            print("Changing Modes...")
+            toggleFunction()
+        if b != lastBut or b == 23:
+            threading.Thread(target=vibrate).start()
+        lastBut = b
         time.sleep(2)
+
         
 
 if __name__ == "__main__":
