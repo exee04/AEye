@@ -57,6 +57,7 @@ def toggleFunction():
     print("Main Mode" if mainFunctionMode else "Secondary Mode")
     
 def vibrate():
+    print("vibrating...")
     vibrationModule.on()
     time.sleep(0.5)
     vibrationModule.off()
