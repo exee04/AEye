@@ -8,41 +8,11 @@ A.Eye leverages advanced object detection models, including YOLOv8 by Ultralytic
 
 ---
 
-## 🚀 Features
-- Real-time Braille character detection
-- Lightweight and optimized for Raspberry Pi 5
-- Easy-to-use and extendable architecture
-- Open-source dataset integration
-
----
-
-## 🧠 Technologies Used
-- **Python**
-- **OpenCV**
-- **YOLOv8** (Ultralytics)
-- **Roboflow** (for dataset hosting)
-- **Picamera2** (for RPi camera integration)
-- **MediaPipe** (for gesture or interaction extensions)
-
----
-
 ## 📸 Hardware Requirements
 - Raspberry Pi 5
 - Camera Module (compatible with Picamera2)
-- MicroSD card with Raspberry Pi OS
+- 128GB MicroSD card with Raspberry Pi OS
 - Optional: Display module for visual output
-
----
-
-## 📂 Project Structure
-```
-├── AEye/
-│   ├── models/
-│   ├── utils/
-│   ├── dataset/
-│   ├── main.py
-│   └── README.md
-```
 
 ---
 
