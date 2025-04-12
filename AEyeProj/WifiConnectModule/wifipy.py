@@ -23,7 +23,7 @@ def connect_to_wifi_nmcli(ssid, password):
 
 def search_for_wifi():
     picam2 = Picamera2()
-    picam2.configure(picam2.create_preview_configuration(main={"size": (1920, 1080), "format": "RGB888"}))
+    picam2.configure(picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"}))
     picam2.start()
     time.sleep(2)
 
@@ -46,14 +46,19 @@ def search_for_wifi():
 
                 if data == last_data:
                     print(f"[??] Full QR Data: {data}")
-
-                    match = re.match(r"WIFI:S:(.*?);T:.*?;P:(.*?);;", data)
+                    data = data.strip()
+                    match = re.match(r"WIFI:T:(.*?);S:(.*?);P:(.*?);(?:H:(true|false);?)?", data)
+                    print("trying to match")
                     if match:
-                        ssid = match.group(1)
-                        password = match.group(2)
+                        auth_type = match.group(1)
+                        ssid = match.group(2)
+                        password = match.group(3).strip() if match.group(3) else ""
+                        hidden = match.group(4) if match.group(4) else "false"
 
+                        print(f"[?] Auth Type: {auth_type}")
                         print(f"[?] SSID: {ssid}")
-                        print(f"[?] PASSWORD: {password}")
+                        print(f"[?] PASSWORD: {repr(password)}")  # Debug print
+                        print(f"[?] Hidden: {hidden}")
 
                         picam2.stop()
                         cv2.destroyAllWindows()

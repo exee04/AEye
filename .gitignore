@@ -1,5 +1,6 @@
 envs/
 yolov5xu_ncnn_model/
+HandRecog/
 
 *.pt
 *.torchscript

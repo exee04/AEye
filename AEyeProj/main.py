@@ -8,7 +8,6 @@ import threading
 import subprocess
 
 #Button Initialization
-GPIO.cleanup()
 button1 = Button(17) #Func 1 button
 button2 = Button(27) #Func 2 button
 button3 = Button(22) #Func 3 button
@@ -51,6 +50,7 @@ def objectDetectMode():
     
 def wifiConnectMode():
     TTS("Wifi Connect Mode")
+    wifipy.runWifiModule()
     print("running wifi connectivity mode")
 
 def distanceCheckMode():
@@ -86,6 +86,8 @@ def vibrate():
 def main():
     GPIO.cleanup()
     global currentVolume
+    global volume
+    TTS("A.Eye is now active!")
     print("System Running...")
     lastBut = 0
     while True:
@@ -105,15 +107,16 @@ def main():
             print("Increasing Volume")
             TTS("Volume Up") if (currentVolume != 200) else TTS("Max Volume")
             currentVolume = (currentVolume + 20) if (currentVolume != 200) else currentVolume
+            volume = str(currentVolume)
+            print(volume)
         if b == 5:
             print("Decreasing Volume")
             TTS("Volume Down") if (currentVolume != 0) else TTS("No Volume")
             currentVolume = (currentVolume - 20) if (currentVolume != 0) else currentVolume
-
+        
+            volume = str(currentVolume)
+            print(volume)
         lastBut = b
-        global volume
-        volume = str(currentVolume)
-        print(volume)
         time.sleep(0) if (b == 6 or b == 5) else time.sleep(1)
         
 
