@@ -3,7 +3,8 @@ from gpiozero import DigitalOutputDevice
 from WifiConnectModule import wifipy
 from queue import Queue
 import sounddevice as sd
-from scipy.io.wavfile import write
+from scipy.io.wavfile import write, read
+from scipy.signal import resample
 import RPi.GPIO as GPIO
 import time
 import threading
@@ -12,7 +13,7 @@ import os
 import whisper
 import numpy as np
 
-audioControlModel = whisper.load_model("medium")
+audioControlModel = whisper.load_model("tiny")
 
 #Button Initialization
 button1 = Button(17) #Func 1 button
@@ -107,11 +108,23 @@ def speak():
         sd.wait()
         audio_data.append(frame)
 
-    print("done holding")
     if audio_data:
         audio_data = np.concatenate(audio_data, axis=0)
         write(filename, fs, audio_data)
         print(f"Saved to {filename}")
+        
+    fs_original, audio = read("output.wav")
+    target_fs = 16000
+    duration = audio.shape[0] / fs_original
+    num_samples = int(duration * target_fs)
+    
+    resampled = resample(audio, num_samples)
+    resampled = np.int16(resampled)
+    
+    write("output.wav", target_fs, resampled)
+        
+    result = audioControlModel.transcribe("output.wav")
+    print("Transcript:", result["text"])
         
 
 def main():
