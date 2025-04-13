@@ -12,8 +12,14 @@ import subprocess
 import os
 import whisper
 import numpy as np
+import io
+import wave
+import re
+from vosk import Model, KaldiRecognizer
+import json
 
-audioControlModel = whisper.load_model("tiny")
+
+audioControlModel = whisper.load_model("base")
 
 #Button Initialization
 button1 = Button(17) #Func 1 button
@@ -99,32 +105,76 @@ def vibrate():
     vibrationModule.off()
     
 def speak():
-    audio_data = []
-    fs = 44100
-    filename = "output.wav"
-    while mainBtn.is_held:
-        print("Holding")
-        frame = sd.rec(int(0.5 * fs), samplerate=fs, channels=1, dtype='int16')
-        sd.wait()
-        audio_data.append(frame)
+    model_path = "/home/ky/AEye/AEyeProj/VoskModels/vosk-model-en-us-0.22"
+    if not os.path.exists(model_path):
+        TTS("Vosk model not found!")
+        print("Please ensure the vosk-model folder is in the project directory.")
+        return
 
-    if audio_data:
-        audio_data = np.concatenate(audio_data, axis=0)
-        write(filename, fs, audio_data)
-        print(f"Saved to {filename}")
+    model = Model(model_path)
+    recognizer = KaldiRecognizer(model, 16000)
+
+    fs = 16000
+    audio_data = []
+
+    TTS("Listening")
+
+    with sd.InputStream(samplerate=fs, channels=1, dtype='int16') as stream:
+        while mainBtn.is_held:
+            audio_chunk, _ = stream.read(4000)
+            if recognizer.AcceptWaveform(audio_chunk):
+                result = json.loads(recognizer.Result())
+                text = result.get("text", "")
+                if text:
+                    print("Recognized:", text)
+                    TTS(text)
+                    if re.search(r'\bquiz mode\b', text, re.IGNORECASE):
+                        print("Entering quiz mode")
+                        # Add logic to start quiz mode
+                    break
+            else:
+                partial = json.loads(recognizer.PartialResult()).get("partial", "")
+                if partial:
+                    print(f"Partial: {partial}", end="\r")
+
+    print("Done Listening")
+
+# def speak():
+#     audio_data = []
+#     fs = 44100
+#     filename = "output.wav"
+#     while mainBtn.is_held:
+#         print("Holding")
+#         frame = sd.rec(int(0.5 * fs), samplerate=fs, channels=1, dtype='int16')
+#         sd.wait()
+#         audio_data.append(frame)
+# 
+#     if audio_data:
+#         audio_data = np.concatenate(audio_data, axis=0)
+#         write(filename, fs, audio_data)
+#         print(f"Saved to {filename}")
+#         
+#     fs_original, audio = read("output.wav")
+#     target_fs = 16000
+#     duration = audio.shape[0] / fs_original
+#     num_samples = int(duration * target_fs)
+#     
+#     resampled = resample(audio, num_samples)
+#     resampled = np.int16(resampled)
+#     
+#     write("output.wav", target_fs, resampled)
+#         
+#     result = audioControlModel.transcribe("output.wav")
+#     print("Transcript:", result["text"])
+#     
+#     if dict_contains_quiz_mode(result):
+#         print("Enterng quiz mode")
         
-    fs_original, audio = read("output.wav")
-    target_fs = 16000
-    duration = audio.shape[0] / fs_original
-    num_samples = int(duration * target_fs)
-    
-    resampled = resample(audio, num_samples)
-    resampled = np.int16(resampled)
-    
-    write("output.wav", target_fs, resampled)
-        
-    result = audioControlModel.transcribe("output.wav")
-    print("Transcript:", result["text"])
+def dict_contains_quiz_mode(data):
+    return any(
+        isinstance(value, str) and re.search(r'\bquiz mode\b', value, re.IGNORECASE)
+        for value in data.values()
+    )
         
 
 def main():
