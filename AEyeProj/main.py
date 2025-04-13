@@ -2,17 +2,24 @@ from gpiozero import Button
 from gpiozero import DigitalOutputDevice
 from WifiConnectModule import wifipy
 from queue import Queue
+import sounddevice as sd
+from scipy.io.wavfile import write
 import RPi.GPIO as GPIO
 import time
 import threading
 import subprocess
+import os
+import whisper
+import numpy as np
+
+audioControlModel = whisper.load_model("medium")
 
 #Button Initialization
 button1 = Button(17) #Func 1 button
 button2 = Button(27) #Func 2 button
 button3 = Button(22) #Func 3 button
 button4 = Button(23) #Func 4 button
-mainBtn = Button(24) #Main func button
+mainBtn = Button(24, hold_time = 0.1) #Main func button
 volUpBtn = Button(6) #Volume up button
 volDownBtn = Button(5) #Volume down button
 
@@ -23,6 +30,8 @@ mainFunctionMode = True
 
 currentVolume = 100
 volume = str(currentVolume)
+
+sd.default.device = [0, None]
 
 def wait_button():
     queue = Queue()
@@ -39,6 +48,7 @@ def wait_button():
 def educationMode():
     TTS("Education Mode")
     print("running education mode")
+    mainBtn.when_held = speak
     
 def scoreCheckMode():
     TTS("Score Checking Mode")
@@ -67,6 +77,13 @@ def TTS(text):
     #subprocess.run(['festival', '--tts'], input=text.encode())
 
     
+def powerOff():
+    TTS("Shutting down")
+    print("System turning off")
+    time.sleep(1.5)
+    #os.system('sudo shutdown -h now')
+    
+    
 def toggleFunction():
     TTS("Changing Mode")
     global mainFunctionMode
@@ -77,10 +94,24 @@ def toggleFunction():
 def vibrate():
     print("vibrating...")
     vibrationModule.on()
-    time.sleep(0.3)
+    time.sleep(1)
     vibrationModule.off()
     
-    
+def speak():
+    audio_data = []
+    fs = 44100
+    filename = "output.wav"
+    while mainBtn.is_held:
+        print("Holding")
+        frame = sd.rec(int(0.5 * fs), samplerate=fs, channels=1, dtype='int16')
+        sd.wait()
+        audio_data.append(frame)
+
+    print("done holding")
+    if audio_data:
+        audio_data = np.concatenate(audio_data, axis=0)
+        write(filename, fs, audio_data)
+        print(f"Saved to {filename}")
         
 
 def main():
@@ -90,6 +121,8 @@ def main():
     TTS("A.Eye is now active!")
     print("System Running...")
     lastBut = 0
+    button4.when_held = powerOff
+    button4.hold_time = 3
     while True:
         b = wait_button()
         if (b != lastBut or b == 23) and (b != 6 and b != 5):
