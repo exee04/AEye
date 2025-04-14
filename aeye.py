@@ -21,6 +21,7 @@ import json
 
 #audioControlModel = whisper.load_model("base")
 
+
 #Button Initialization
 button1 = Button(17) #Func 1 button
 button2 = Button(27) #Func 2 button
@@ -47,6 +48,11 @@ def wait_button():
     button3.when_pressed = queue.put
     button4.when_pressed = queue.put
     mainBtn.when_pressed = queue.put
+    e = queue.get()
+    return e.pin.number
+
+def wait_volbutton():
+    queue = Queue()
     volUpBtn.when_pressed = queue.put
     volDownBtn.when_pressed = queue.put
     e = queue.get()
@@ -67,8 +73,17 @@ def objectDetectMode():
     
 def wifiConnectMode():
     TTS("Wifi Connect Mode")
-    wifipy.runWifiModule()
     print("running wifi connectivity mode")
+    if wifipy.is_connected:
+        print("you are already connected, to change connection press the main button")
+        while not button1.is_pressed or button3.is_pressed or button4.is_pressed:
+            if mainBtn.is_pressed:
+                print("run")
+                threading.Thread(target=wifipy.search_for_wifi()).start()
+                break
+        print("Exiting Wifi Connect Mode")
+            
+
 
 def distanceCheckMode():
     TTS("Distance Check Mode")
@@ -80,7 +95,7 @@ def batteryCheckMode():
 
 def TTS(text):
     global volume
-    subprocess.run(['espeak-ng', "-a", volume, "-s", "250", "-p", "70", text])
+    #subprocess.run(['espeak-ng', "-a", volume, "-s", "250", "-p", "70", text])
     #subprocess.run(['festival', '--tts'], input=text.encode())
 
     
@@ -100,9 +115,9 @@ def toggleFunction():
     
 def vibrate():
     print("vibrating...")
-    vibrationModule.on()
-    time.sleep(1)
-    vibrationModule.off()
+    #vibrationModule.on()
+    #time.sleep(1)
+    #vibrationModule.off()
     
 # def speak():
 #     model_path = "/home/ky/AEye/AEyeProj/VoskModels/vosk-model-en-us-0.22"
@@ -169,20 +184,39 @@ def vibrate():
 #     
 #     if dict_contains_quiz_mode(result):
 #         print("Enterng quiz mode")
+#         
+# def dict_contains_quiz_mode(data):
+#     return any(
+#         isinstance(value, str) and re.search(r'\bquiz mode\b', value, re.IGNORECASE)
+#         for value in data.values()
+#     )
+def volumeControl():
+    print("this is rnning")
+    global currentVolume
+    global volume
+    while True:
+        b = wait_volbutton()
+        if b == 6:
+            print("Increasing Volume")
+            TTS("Volume Up") if (currentVolume != 200) else TTS("Max Volume")
+            currentVolume = (currentVolume + 20) if (currentVolume != 200) else currentVolume
+            volume = str(currentVolume)
+            print(volume)
+        if b == 5:
+            print("Decreasing Volume")
+            TTS("Volume Down") if (currentVolume != 0) else TTS("No Volume")
+            currentVolume = (currentVolume - 20) if (currentVolume != 0) else currentVolume
         
-def dict_contains_quiz_mode(data):
-    return any(
-        isinstance(value, str) and re.search(r'\bquiz mode\b', value, re.IGNORECASE)
-        for value in data.values()
-    )
-        
+            volume = str(currentVolume)
+            print(volume)
+        time.sleep(0.2)
 
 def main():
     GPIO.cleanup()
-    global currentVolume
-    global volume
+    threading.Thread(target=volumeControl).start()
     TTS("A.Eye is now active!")
     print("System Running...")
+    wifipy.isActive = False
     lastBut = 0
     button4.when_held = powerOff
     button4.hold_time = 3
@@ -199,21 +233,8 @@ def main():
         if b == 23:
             print("Changing Modes...")
             toggleFunction()
-        if b == 6:
-            print("Increasing Volume")
-            TTS("Volume Up") if (currentVolume != 200) else TTS("Max Volume")
-            currentVolume = (currentVolume + 20) if (currentVolume != 200) else currentVolume
-            volume = str(currentVolume)
-            print(volume)
-        if b == 5:
-            print("Decreasing Volume")
-            TTS("Volume Down") if (currentVolume != 0) else TTS("No Volume")
-            currentVolume = (currentVolume - 20) if (currentVolume != 0) else currentVolume
-        
-            volume = str(currentVolume)
-            print(volume)
         lastBut = b
-        time.sleep(0) if (b == 6 or b == 5) else time.sleep(1)
+        time.sleep(0.5)
         
 
         

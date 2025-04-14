@@ -4,6 +4,9 @@ from picamera2 import Picamera2
 import time
 import re
 import subprocess
+import socket
+
+isActive = False
 
 def connect_to_wifi_nmcli(ssid, password):
     print(f"[??] Trying to connect to: {ssid}")
@@ -31,8 +34,8 @@ def search_for_wifi():
     last_data = ""
     ssid = ""
     password = ""
-
-    while True:
+    isActive = True
+    while isActive:
         frame = picam2.capture_array()
         data, bbox, _ = qr_detector.detectAndDecode(frame)
 
@@ -82,9 +85,14 @@ def search_for_wifi():
     cv2.destroyAllWindows()
     return False
 
+def is_connected(host="8.8.8.8", port=53, timeout=3):
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+        return True
+    except socket.error:
+        return False
+
 def runWifiModule():
     success = search_for_wifi()
-    if success:
-        print("[??] WiFi connection established!")
-    else:
-        print("[??] Could not connect to WiFi.")
+    return success
