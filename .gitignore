@@ -1,7 +1,2 @@
 envs/
-yolov5xu_ncnn_model/
-HandRecog/
-VoskModels/
-
-*.pt
-*.torchscript
+AI_Models/
