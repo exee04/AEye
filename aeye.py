@@ -1,6 +1,6 @@
 from gpiozero import Button
 from gpiozero import DigitalOutputDevice
-from WifiConnectModule import wifipy
+from SystemModules.WifiConnectModule import wifipy
 from queue import Queue
 import sounddevice as sd
 from scipy.io.wavfile import write, read
@@ -19,7 +19,7 @@ from vosk import Model, KaldiRecognizer
 import json
 
 
-audioControlModel = whisper.load_model("base")
+#audioControlModel = whisper.load_model("base")
 
 #Button Initialization
 button1 = Button(17) #Func 1 button
@@ -55,7 +55,7 @@ def wait_button():
 def educationMode():
     TTS("Education Mode")
     print("running education mode")
-    mainBtn.when_held = speak
+    #mainBtn.when_held = speak
     
 def scoreCheckMode():
     TTS("Score Checking Mode")
@@ -104,40 +104,40 @@ def vibrate():
     time.sleep(1)
     vibrationModule.off()
     
-def speak():
-    model_path = "/home/ky/AEye/AEyeProj/VoskModels/vosk-model-en-us-0.22"
-    if not os.path.exists(model_path):
-        TTS("Vosk model not found!")
-        print("Please ensure the vosk-model folder is in the project directory.")
-        return
-
-    model = Model(model_path)
-    recognizer = KaldiRecognizer(model, 16000)
-
-    fs = 16000
-    audio_data = []
-
-    TTS("Listening")
-
-    with sd.InputStream(samplerate=fs, channels=1, dtype='int16') as stream:
-        while mainBtn.is_held:
-            audio_chunk, _ = stream.read(4000)
-            if recognizer.AcceptWaveform(audio_chunk):
-                result = json.loads(recognizer.Result())
-                text = result.get("text", "")
-                if text:
-                    print("Recognized:", text)
-                    TTS(text)
-                    if re.search(r'\bquiz mode\b', text, re.IGNORECASE):
-                        print("Entering quiz mode")
-                        # Add logic to start quiz mode
-                    break
-            else:
-                partial = json.loads(recognizer.PartialResult()).get("partial", "")
-                if partial:
-                    print(f"Partial: {partial}", end="\r")
-
-    print("Done Listening")
+# def speak():
+#     model_path = "/home/ky/AEye/AEyeProj/VoskModels/vosk-model-en-us-0.22"
+#     if not os.path.exists(model_path):
+#         TTS("Vosk model not found!")
+#         print("Please ensure the vosk-model folder is in the project directory.")
+#         return
+# 
+#     model = Model(model_path)
+#     recognizer = KaldiRecognizer(model, 16000)
+# 
+#     fs = 16000
+#     audio_data = []
+# 
+#     TTS("Listening")
+# 
+#     with sd.InputStream(samplerate=fs, channels=1, dtype='int16') as stream:
+#         while mainBtn.is_held:
+#             audio_chunk, _ = stream.read(4000)
+#             if recognizer.AcceptWaveform(audio_chunk):
+#                 result = json.loads(recognizer.Result())
+#                 text = result.get("text", "")
+#                 if text:
+#                     print("Recognized:", text)
+#                     TTS(text)
+#                     if re.search(r'\bquiz mode\b', text, re.IGNORECASE):
+#                         print("Entering quiz mode")
+#                         # Add logic to start quiz mode
+#                     break
+#             else:
+#                 partial = json.loads(recognizer.PartialResult()).get("partial", "")
+#                 if partial:
+#                     print(f"Partial: {partial}", end="\r")
+# 
+#     print("Done Listening")
 
 # def speak():
 #     audio_data = []
