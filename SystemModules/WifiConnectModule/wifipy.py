@@ -5,8 +5,10 @@ import time
 import re
 import subprocess
 import socket
+from gpiozero import Button
 
 isActive = False
+
 
 def connect_to_wifi_nmcli(ssid, password):
     print(f"[??] Trying to connect to: {ssid}")
@@ -24,20 +26,21 @@ def connect_to_wifi_nmcli(ssid, password):
         print("Error:", result.stderr)
         return False
 
-def search_for_wifi():
-    picam2 = Picamera2()
-    picam2.configure(picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"}))
+def search_for_wifi(stopBtn, picam2):
+#     preview_config = picam2.create_preview_configuration(main={"format": 'RGB888', "size": (640, 480)})
+#     picam2.configure(preview_config)
     picam2.start()
     time.sleep(2)
 
     qr_detector = cv2.QRCodeDetector()
     last_data = ""
-    ssid = ""
-    password = ""
-    isActive = True
-    while isActive:
+    
+    while True:
         frame = picam2.capture_array()
         data, bbox, _ = qr_detector.detectAndDecode(frame)
+
+        if stopBtn.is_pressed:
+            break
 
         if bbox is not None:
             points = np.int32(bbox).reshape(-1, 2)
@@ -49,41 +52,26 @@ def search_for_wifi():
 
                 if data == last_data:
                     print(f"[??] Full QR Data: {data}")
-                    data = data.strip()
-                    match = re.match(r"WIFI:T:(.*?);S:(.*?);P:(.*?);(?:H:(true|false);?)?", data)
-                    print("trying to match")
+                    match = re.match(r"WIFI:T:(.*?);S:(.*?);P:(.*?);(?:H:(true|false);?)?", data.strip())
                     if match:
-                        auth_type = match.group(1)
                         ssid = match.group(2)
                         password = match.group(3).strip() if match.group(3) else ""
-                        hidden = match.group(4) if match.group(4) else "false"
-
-                        print(f"[?] Auth Type: {auth_type}")
-                        print(f"[?] SSID: {ssid}")
-                        print(f"[?] PASSWORD: {repr(password)}")  # Debug print
-                        print(f"[?] Hidden: {hidden}")
-
-                        picam2.stop()
-                        cv2.destroyAllWindows()
-
-                        # Try connecting to WiFi
+                        print(f"[?] SSID: {ssid}, Password: {password}")
                         connected = connect_to_wifi_nmcli(ssid, password)
-                    
-                        return connected
+                        break
                     else:
                         print("[??] QR format not recognized")
-
                 else:
                     last_data = data
                     print("[??] QR code scanned. Scan again to confirm...")
 
         cv2.imshow("QR Code Scanner", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        cv2.waitKey(1)
+        time.sleep(0.01)
 
     picam2.stop()
     cv2.destroyAllWindows()
-    return False
+    
 
 def is_connected(host="8.8.8.8", port=53, timeout=3):
     try:
@@ -93,6 +81,4 @@ def is_connected(host="8.8.8.8", port=53, timeout=3):
     except socket.error:
         return False
 
-def runWifiModule():
-    success = search_for_wifi()
-    return success
+

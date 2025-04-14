@@ -5,6 +5,7 @@ from queue import Queue
 import sounddevice as sd
 from scipy.io.wavfile import write, read
 from scipy.signal import resample
+from picamera2 import Picamera2
 import RPi.GPIO as GPIO
 import time
 import threading
@@ -20,7 +21,8 @@ import json
 
 
 #audioControlModel = whisper.load_model("base")
-
+picam2 = Picamera2()
+picam2.configure(picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"}))
 
 #Button Initialization
 button1 = Button(17) #Func 1 button
@@ -76,12 +78,14 @@ def wifiConnectMode():
     print("running wifi connectivity mode")
     if wifipy.is_connected:
         print("you are already connected, to change connection press the main button")
-        while not button1.is_pressed or button3.is_pressed or button4.is_pressed:
+        while not button4.is_pressed or button2.is_pressed:
             if mainBtn.is_pressed:
                 print("run")
-                threading.Thread(target=wifipy.search_for_wifi()).start()
+                threading.Thread(target=wifipy.search_for_wifi(button4, picam2)).start()
                 break
-        print("Exiting Wifi Connect Mode")
+    else:
+        threading.Thread(target=wifipy.search_for_wifi(button4)).start()
+    print("Exiting Wifi Connect Mode")
             
 
 
@@ -95,7 +99,7 @@ def batteryCheckMode():
 
 def TTS(text):
     global volume
-    #subprocess.run(['espeak-ng', "-a", volume, "-s", "250", "-p", "70", text])
+    threading.Thread(target=lambda: subprocess.run(['espeak-ng', "-a", volume, "-s", "250", "-p", "70", text])).start()
     #subprocess.run(['festival', '--tts'], input=text.encode())
 
     
@@ -107,7 +111,6 @@ def powerOff():
     
     
 def toggleFunction():
-    TTS("Changing Mode")
     global mainFunctionMode
     mainFunctionMode = not mainFunctionMode
     TTS("Main Mode") if mainFunctionMode else TTS("Secondary Mode")
@@ -222,11 +225,11 @@ def main():
     button4.hold_time = 3
     while True:
         b = wait_button()
-        if (b != lastBut or b == 23) and (b != 6 and b != 5):
+        if (b != lastBut or b == 23):
             threading.Thread(target=vibrate).start()
         if b == 17 and b != lastBut:
             educationMode() if mainFunctionMode else scoreCheckMode()
-        if b == 27 and b != lastBut:
+        if (b == 27 and b != lastBut):
             objectDetectMode() if mainFunctionMode else wifiConnectMode()
         if b == 22 and b != lastBut:
             distanceCheckMode() if mainFunctionMode else batteryCheckMode()
