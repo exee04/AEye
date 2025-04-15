@@ -6,15 +6,17 @@ import sounddevice as sd
 from scipy.io.wavfile import write, read
 from scipy.signal import resample
 from picamera2 import Picamera2
+from google.cloud import speech
+from scipy.signal import resample_poly
 import RPi.GPIO as GPIO
 import time
 import threading
 import subprocess
 import os
-import whisper
 import numpy as np
 import io
 import wave
+import pyaudio
 import re
 from vosk import Model, KaldiRecognizer
 import json
@@ -63,7 +65,9 @@ def wait_volbutton():
 def educationMode():
     TTS("Education Mode")
     print("running education mode")
-    #mainBtn.when_held = speak
+    #speak_google_from_wav()
+    mainBtn.when_held = speak
+    
     
 def scoreCheckMode():
     TTS("Score Checking Mode")
@@ -122,77 +126,64 @@ def vibrate():
     #time.sleep(1)
     #vibrationModule.off()
     
-# def speak():
-#     model_path = "/home/ky/AEye/AEyeProj/VoskModels/vosk-model-en-us-0.22"
-#     if not os.path.exists(model_path):
-#         TTS("Vosk model not found!")
-#         print("Please ensure the vosk-model folder is in the project directory.")
-#         return
-# 
-#     model = Model(model_path)
-#     recognizer = KaldiRecognizer(model, 16000)
-# 
-#     fs = 16000
-#     audio_data = []
-# 
-#     TTS("Listening")
-# 
-#     with sd.InputStream(samplerate=fs, channels=1, dtype='int16') as stream:
-#         while mainBtn.is_held:
-#             audio_chunk, _ = stream.read(4000)
-#             if recognizer.AcceptWaveform(audio_chunk):
-#                 result = json.loads(recognizer.Result())
-#                 text = result.get("text", "")
-#                 if text:
-#                     print("Recognized:", text)
-#                     TTS(text)
-#                     if re.search(r'\bquiz mode\b', text, re.IGNORECASE):
-#                         print("Entering quiz mode")
-#                         # Add logic to start quiz mode
-#                     break
-#             else:
-#                 partial = json.loads(recognizer.PartialResult()).get("partial", "")
-#                 if partial:
-#                     print(f"Partial: {partial}", end="\r")
-# 
-#     print("Done Listening")
 
-# def speak():
-#     audio_data = []
-#     fs = 44100
-#     filename = "output.wav"
-#     while mainBtn.is_held:
-#         print("Holding")
-#         frame = sd.rec(int(0.5 * fs), samplerate=fs, channels=1, dtype='int16')
-#         sd.wait()
-#         audio_data.append(frame)
-# 
-#     if audio_data:
-#         audio_data = np.concatenate(audio_data, axis=0)
-#         write(filename, fs, audio_data)
-#         print(f"Saved to {filename}")
-#         
-#     fs_original, audio = read("output.wav")
-#     target_fs = 16000
-#     duration = audio.shape[0] / fs_original
-#     num_samples = int(duration * target_fs)
-#     
-#     resampled = resample(audio, num_samples)
-#     resampled = np.int16(resampled)
-#     
-#     write("output.wav", target_fs, resampled)
-#         
-#     result = audioControlModel.transcribe("output.wav")
-#     print("Transcript:", result["text"])
-#     
-#     if dict_contains_quiz_mode(result):
-#         print("Enterng quiz mode")
-#         
-# def dict_contains_quiz_mode(data):
-#     return any(
-#         isinstance(value, str) and re.search(r'\bquiz mode\b', value, re.IGNORECASE)
-#         for value in data.values()
-#     )
+def speak():
+    audio_data = []
+    fs = 44100  # Original sample rate (from mic)
+    target_fs = 16000  # Required for Google STT
+    filename = "output.wav"
+
+    # Record audio while button is held
+    while mainBtn.is_held:
+        print("Holding")
+        frame = sd.rec(int(0.5 * fs), samplerate=fs, channels=1, dtype='int16')
+        sd.wait()
+        audio_data.append(frame)
+
+    if not audio_data:
+        TTS("No audio captured.")
+        return
+
+    # Concatenate recorded chunks
+    audio_data = np.concatenate(audio_data, axis=0)
+
+    # Resample using fast method
+    audio_resampled = resample_poly(audio_data.flatten(), target_fs, fs)
+    audio_resampled = audio_resampled.astype('int16')
+
+    # Save WAV file
+    write(filename, target_fs, audio_resampled)
+    print(f"Saved to {filename}")
+
+    # Google Speech-to-Text
+    client = speech.SpeechClient()
+    with open(filename, "rb") as audio_file:
+        content = audio_file.read()
+
+    audio = speech.RecognitionAudio(content=content)
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=target_fs,
+        language_code="en-US"
+    )
+
+    try:
+        response = client.recognize(config=config, audio=audio)
+        for result in response.results:
+            transcript = result.alternatives[0].transcript
+            print("Transcript:", transcript)
+            TTS(transcript)
+            if "quiz mode" in transcript.lower():
+                TTS("Entering quiz mode")
+                # Add your logic here
+    except Exception as e:
+        print("Google transcription error:", e)
+        TTS("An error occurred while transcribing")
+
+    # Clean up
+    if os.path.exists(filename):
+        os.remove(filename)
+    
 def volumeControl():
     print("this is rnning")
     global currentVolume
@@ -240,7 +231,6 @@ def main():
         time.sleep(0.5)
         
 
-        
 
 if __name__ == "__main__":
     main()

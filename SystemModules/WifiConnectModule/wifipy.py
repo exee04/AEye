@@ -7,6 +7,7 @@ import subprocess
 import socket
 from gpiozero import Button
 
+
 isActive = False
 
 
