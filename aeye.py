@@ -21,8 +21,20 @@ import re
 from vosk import Model, KaldiRecognizer
 import json
 
+#Initializing Google API
+client = speech.SpeechClient()
 
-#audioControlModel = whisper.load_model("base")
+#Microphone input initialization
+fs = 44100  
+target_fs = 16000  
+filename = "output.wav"
+config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=target_fs,
+        language_code="en-US"
+    )
+    
+
 picam2 = Picamera2()
 picam2.configure(picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"}))
 
@@ -129,10 +141,6 @@ def vibrate():
 
 def speak():
     audio_data = []
-    fs = 44100  # Original sample rate (from mic)
-    target_fs = 16000  # Required for Google STT
-    filename = "output.wav"
-
     # Record audio while button is held
     while mainBtn.is_held:
         print("Holding")
@@ -156,16 +164,10 @@ def speak():
     print(f"Saved to {filename}")
 
     # Google Speech-to-Text
-    client = speech.SpeechClient()
     with open(filename, "rb") as audio_file:
         content = audio_file.read()
 
     audio = speech.RecognitionAudio(content=content)
-    config = speech.RecognitionConfig(
-        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-        sample_rate_hertz=target_fs,
-        language_code="en-US"
-    )
 
     try:
         response = client.recognize(config=config, audio=audio)
@@ -175,7 +177,7 @@ def speak():
             TTS(transcript)
             if "quiz mode" in transcript.lower():
                 TTS("Entering quiz mode")
-                # Add your logic here
+                print("quiz mode")
     except Exception as e:
         print("Google transcription error:", e)
         TTS("An error occurred while transcribing")
