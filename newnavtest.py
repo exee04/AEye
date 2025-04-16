@@ -50,7 +50,7 @@ def vibrate():
 def TTS(text):
     global volume
     global voiceSpeed
-    threading.Thread(target=lambda: subprocess.run(['espeak-ng', "-a", volume, "-s", voiceSpeed, "-p", "70", text])).start()
+    threading.Thread(target=lambda: subprocess.run(['espeak-ng', "-a", str(volume), "-s", str(voiceSpeed), "-p", "70", text])).start()
     #subprocess.run(['festival', '--tts'], input=text.encode())
 
 def speak():
@@ -105,7 +105,6 @@ def changeLanguage():
     onDefaultLanguage = not onDefaultLanguage 
     currentLanguage = "en-US" if onDefaultLanguage else "fil-PH"
 	
-
 def changeTalkingSpeed():
     global onVolumeControl
     onVolumeControl = not onVolumeControl
@@ -118,6 +117,7 @@ def volumeControl():
     global voiceSpeed
     MIN_SPEED = 80
     MAX_SPEED = 250
+    RATE = 20
     while True:
         b = wait_volbutton()
         if onVolumeControl:
@@ -136,20 +136,19 @@ def volumeControl():
                 print(volume)
         else:
             if b == 6:
-                if voiceSpeed + 10 <= MAX_SPEED:
-                    voiceSpeed += 10
+                if voiceSpeed + RATE <= MAX_SPEED:
+                    voiceSpeed += RATE
                     print(f"Increasing Talking Speed to {voiceSpeed} WPM")
-            else:
-                print(f"Already at Max Speed ({MAX_SPEED} WPM)")
+                else:
+                    print(f"Already at Max Speed ({MAX_SPEED} WPM)")
 
             if b == 5:
-                if voiceSpeed - 10 >= MIN_SPEED:
-                    voiceSpeed -= 10
+                if voiceSpeed - RATE >= MIN_SPEED:
+                    voiceSpeed -= RATE
                     print(f"Decreasing Talking Speed to {voiceSpeed} WPM")
-            else:
-                print(f"Already at Min Speed ({MIN_SPEED} WPM)")
+                else:
+                    print(f"Already at Min Speed ({MIN_SPEED} WPM)")
         time.sleep(0.2)
-
 
 client = speech.SpeechClient() #Google API Client
 
@@ -164,7 +163,6 @@ config = speech.RecognitionConfig(
 		alternative_language_codes="fil-PH",
     )
 
-
 mainMode = True
 
 #Global variable for checking user prompts
@@ -177,35 +175,45 @@ funcButton3 = SmartButton(22) #button 3
 funcButton4 = SmartButton(23) #button 4
 mainBtn = Button(24, hold_time=0.1)
 #mainBtn = SmartButton(24) #main button
-#volUpBtn = SmartButton(6)
-#volDownBtn = SmartButton(5)
+volUpBtn = Button(6)
+volDownBtn = Button(5)
 
 onVolumeControl = True
 
 voiceSpeed = 175
+currentVolume = 100
+volume = currentVolume
 
 onDefaultLanguage = True
 currentLanguage = "en-US"
 language1 = "en-US"
 language2 = "fil-PH"
 
-funcButton4.on_tap = lambda: (toggleMode())
-while True:
-	print("run")
-	b = wait_button()
-	if mainMode:
-		if b == 17:
-			EducMode() 
-		if b == 27:
-			print('run detect mode')
-	else:
-		if b == 17:
-			print("wifi connect mode")
-		if b == 27:
-			print("print barry life")
-		funcButton3.on_hold = lambda: changeLanguage()
-		funcButton3.on_tap = lambda: changeTalkingSpeed()
-                  
-	lastBut = b
-	time.sleep(0.5)
 
+def main():
+    funcButton4.on_tap = lambda: toggleMode()
+    threading.Thread(target=volumeControl).start()
+    
+    while True:
+        print("run")
+        b = wait_button()
+        
+        if mainMode:
+            if b == 17:
+                EducMode()
+            if b == 27:
+                print('run detect mode')
+        else:
+            if b == 17:
+                print("wifi connect mode")
+            if b == 27:
+                print("print barry life")
+        
+        funcButton3.on_hold = lambda: changeLanguage()
+        funcButton3.on_tap = lambda: changeTalkingSpeed()
+        
+        lastBut = b
+        time.sleep(0.5)
+
+if __name__ == "__main__":
+     main()
