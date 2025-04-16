@@ -51,7 +51,6 @@ volDownBtn = Button(5) #Volume down button
 vibrationModule = DigitalOutputDevice(16) #Vibration Module
 
 mainFunctionMode = True
-
 currentVolume = 100
 volume = str(currentVolume)
 
@@ -181,7 +180,6 @@ def speak():
     except Exception as e:
         print("Google transcription error:", e)
         TTS("An error occurred while transcribing")
-
     # Clean up
     if os.path.exists(filename):
         os.remove(filename)
@@ -237,7 +235,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-class stoppableFunction:
-    def __init__(self):
-        pass
