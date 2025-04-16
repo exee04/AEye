@@ -236,3 +236,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+class stoppableFunction:
+    def __init__(self):
+        pass
