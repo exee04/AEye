@@ -7,7 +7,11 @@ from google.cloud import speech
 import sounddevice as sd
 import numpy as np
 from scipy.signal import resample_poly
-from scipy.io.wavfile import write, read
+from scipy.io.wavfile import write
+from SystemModules.Prompts.SystemPrompts import QUIZ_PROMPT_MAP
+from SystemModules.Prompts.SystemPrompts import EDUCATION_PROMPT_MAP
+from SystemModules.Prompts.SystemPrompts import MAIN_PROMPT_MAP
+import difflib
 import os
 import subprocess
 
@@ -18,32 +22,54 @@ def toggleMode():
 	print("Current mode: main mode" if mainMode else "Current mode: secondary mode")
 
 def EducMode():
+    print("Education Mode")
     mainBtn.when_held = speak
     global transcript
     global mainMode
     global activeEducMode
+    global PROMPT_MAP
+    PROMPT_MAP = MAIN_PROMPT_MAP
     activeEducMode = True
     lastTranscript = ""
     funcButton2.on_tap = ScoreCheckMode
+    
+    TTS("Education Mode")
     while mainMode and activeEducMode:
         if(lastTranscript != lastPrompt):
             lastTranscript = lastPrompt
             print(lastPrompt)
             TTS(lastPrompt)
             CheckForKeywords(lastPrompt)
+            if(activeLearnMode):
+                pass
+            elif(activeQuizMode):
+                pass
+            
         time.sleep(0.01)
     
-def CheckForKeywords(text):
-    prompt = text.lower()
-    match True:
-        case _ if "quiz mode" in prompt:
-            TTS("Initialize Quiz Mode")
-        case _ if "date today" in prompt:
-            TTS("date")
 
 def ScoreCheckMode():
     global activeEducMode
     activeEducMode = False
+
+def toggleLearningMode():
+    global activeLearnMode
+    global PROMPT_MAP
+    PROMPT_MAP = EDUCATION_PROMPT_MAP
+    activeLearnMode = not activeLearnMode
+    print("Learn Mode = " + str(activeLearnMode))
+
+def toggleQuizMode():
+    global activeQuizMode
+    global PROMPT_MAP
+    PROMPT_MAP = QUIZ_PROMPT_MAP
+    activeQuizMode = not activeQuizMode
+    print("Quiz Mode =" + str(activeQuizMode))
+
+def toggleQuestionMode():
+    global activeQuestion
+    activeQuestion = not activeQuestion
+
 
 def wait_button():
 	queue = Queue() 
@@ -173,6 +199,47 @@ def volumeControl():
                     TTS("Minimun Talking Speed")
         time.sleep(0.2)
 
+def get_best_match(prompt: str, threshold=0.65):
+    global PROMPT_MAP
+    prompt = prompt.lower()
+    best_match = difflib.get_close_matches(prompt, PROMPT_MAP.keys(), n=1, cutoff=threshold)
+    return PROMPT_MAP[best_match[0]] if best_match else None
+
+def handle_command(flag):
+    global PROMPT_MAP
+    if flag == "OBJECT_DETECTION":
+        print("running detect mode")
+    elif flag == "DISTANCE_CHECK":
+        pass
+    elif flag == "LEARN_MODE":
+        TTS("Entering Learn Mode")
+        toggleLearningMode()
+    elif flag == "QUIZ_MODE":
+        TTS("Entering Quiz Mode")
+        toggleQuizMode()
+    elif flag == "TIME_QUERY":
+        pass
+    elif flag == "DATE_QUERY":
+        pass
+    elif flag == "GREET":
+        pass
+    elif flag == "CANCEL":
+        PROMPT_MAP = MAIN_PROMPT_MAP
+    elif flag == "SHOW_HELP":
+        pass
+    elif flag == "STATE_MODE":
+        print(str(PROMPT_MAP))
+    else:
+        pass
+
+def CheckForKeywords(text):
+    command_flag = get_best_match(text)
+    if command_flag:
+        handle_command(command_flag)
+    else:
+        TTS("Sorry, I didn’t understand that. Try saying 'help me'.")
+
+
 client = speech.SpeechClient() #Google API Client
 
 #Microphone Initialization
@@ -212,7 +279,11 @@ language1 = "en-US"
 language2 = "fil-PH"
 
 activeEducMode = False
+activeQuizMode = False
+activeLearnMode = False
+activeQuestion = False
 
+PROMPT_MAP = None
 
 def main():
     funcButton4.on_tap = lambda: toggleMode()
