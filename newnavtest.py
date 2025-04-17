@@ -18,13 +18,32 @@ def toggleMode():
 	print("Current mode: main mode" if mainMode else "Current mode: secondary mode")
 
 def EducMode():
-	mainBtn.when_held = speak
-	global transcript
-	lastTranscript = ""
-	while True:
-		if lastTranscript != lastPrompt:
-			print("new command has been said")
-			lastTranscript = lastPrompt
+    mainBtn.when_held = speak
+    global transcript
+    global mainMode
+    global activeEducMode
+    activeEducMode = True
+    lastTranscript = ""
+    funcButton2.on_tap = ScoreCheckMode
+    while mainMode and activeEducMode:
+        if(lastTranscript != lastPrompt):
+            lastTranscript = lastPrompt
+            print(lastPrompt)
+            TTS(lastPrompt)
+            CheckForKeywords(lastPrompt)
+        time.sleep(0.01)
+    
+def CheckForKeywords(text):
+    prompt = text.lower()
+    match True:
+        case _ if "quiz mode" in prompt:
+            TTS("Initialize Quiz Mode")
+        case _ if "date today" in prompt:
+            TTS("date")
+
+def ScoreCheckMode():
+    global activeEducMode
+    activeEducMode = False
 
 def wait_button():
 	queue = Queue() 
@@ -115,9 +134,9 @@ def volumeControl():
     global volume
     global onVolumeControl
     global voiceSpeed
-    MIN_SPEED = 80
-    MAX_SPEED = 250
-    RATE = 20
+    MIN_SPEED = 100
+    MAX_SPEED = 280
+    RATE = 10
     while True:
         b = wait_volbutton()
         if onVolumeControl:
@@ -139,15 +158,19 @@ def volumeControl():
                 if voiceSpeed + RATE <= MAX_SPEED:
                     voiceSpeed += RATE
                     print(f"Increasing Talking Speed to {voiceSpeed} WPM")
+                    TTS("Increasing Talking Speed")
                 else:
                     print(f"Already at Max Speed ({MAX_SPEED} WPM)")
+                    TTS("Max Talking Speed")
 
             if b == 5:
                 if voiceSpeed - RATE >= MIN_SPEED:
                     voiceSpeed -= RATE
                     print(f"Decreasing Talking Speed to {voiceSpeed} WPM")
+                    TTS("Decreasing Talking Speed")
                 else:
                     print(f"Already at Min Speed ({MIN_SPEED} WPM)")
+                    TTS("Minimun Talking Speed")
         time.sleep(0.2)
 
 client = speech.SpeechClient() #Google API Client
@@ -160,7 +183,6 @@ config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
         sample_rate_hertz=target_fs,
         language_code="en-US",
-		alternative_language_codes="fil-PH",
     )
 
 mainMode = True
@@ -180,7 +202,7 @@ volDownBtn = Button(5)
 
 onVolumeControl = True
 
-voiceSpeed = 175
+voiceSpeed = 170
 currentVolume = 100
 volume = currentVolume
 
@@ -188,6 +210,8 @@ onDefaultLanguage = True
 currentLanguage = "en-US"
 language1 = "en-US"
 language2 = "fil-PH"
+
+activeEducMode = False
 
 
 def main():
@@ -208,7 +232,7 @@ def main():
                 print("wifi connect mode")
             if b == 27:
                 print("print barry life")
-        
+
         funcButton3.on_hold = lambda: changeLanguage()
         funcButton3.on_tap = lambda: changeTalkingSpeed()
         
