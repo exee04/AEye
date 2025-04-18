@@ -11,10 +11,12 @@ from scipy.io.wavfile import write
 from SystemModules.Prompts.SystemPrompts import QUIZ_PROMPT_MAP
 from SystemModules.Prompts.SystemPrompts import EDUCATION_PROMPT_MAP
 from SystemModules.Prompts.SystemPrompts import MAIN_PROMPT_MAP
+from SystemModules.Prompts.SystemPrompts import COMMON_PROMPT_MAP
 import difflib
 import os
 import subprocess
-
+import random
+from datetime import datetime
 
 def toggleMode():
 	global mainMode
@@ -38,7 +40,6 @@ def EducMode():
         if(lastTranscript != lastPrompt):
             lastTranscript = lastPrompt
             print(lastPrompt)
-            TTS(lastPrompt)
             CheckForKeywords(lastPrompt)
             if(activeLearnMode):
                 pass
@@ -70,7 +71,6 @@ def toggleQuestionMode():
     global activeQuestion
     activeQuestion = not activeQuestion
 
-
 def wait_button():
 	queue = Queue() 
 	funcButton1.button.when_pressed = queue.put
@@ -100,7 +100,7 @@ def TTS(text):
 
 def speak():
     global lastPrompt 
-
+    transcript = ""
     audio_data = []
 
     # Record audio while button is held
@@ -202,35 +202,38 @@ def volumeControl():
 def get_best_match(prompt: str, threshold=0.65):
     global PROMPT_MAP
     prompt = prompt.lower()
-    best_match = difflib.get_close_matches(prompt, PROMPT_MAP.keys(), n=1, cutoff=threshold)
-    return PROMPT_MAP[best_match[0]] if best_match else None
+    PROMPT_MAP_AND_COMMON_MAP = {**PROMPT_MAP, **COMMON_PROMPT_MAP}
+    best_match = difflib.get_close_matches(prompt, PROMPT_MAP_AND_COMMON_MAP.keys(), n=1, cutoff=threshold)
+    print(best_match)
+    return PROMPT_MAP_AND_COMMON_MAP[best_match[0]] if best_match else None
 
 def handle_command(flag):
-    global PROMPT_MAP
-    if flag == "OBJECT_DETECTION":
-        print("running detect mode")
-    elif flag == "DISTANCE_CHECK":
-        pass
-    elif flag == "LEARN_MODE":
-        TTS("Entering Learn Mode")
-        toggleLearningMode()
-    elif flag == "QUIZ_MODE":
-        TTS("Entering Quiz Mode")
-        toggleQuizMode()
-    elif flag == "TIME_QUERY":
-        pass
-    elif flag == "DATE_QUERY":
-        pass
-    elif flag == "GREET":
-        pass
-    elif flag == "CANCEL":
-        PROMPT_MAP = MAIN_PROMPT_MAP
-    elif flag == "SHOW_HELP":
-        pass
-    elif flag == "STATE_MODE":
-        print(str(PROMPT_MAP))
-    else:
-        pass
+    match flag:
+        case "LEARN_MODE":
+            toggleLearningMode()
+        case "QUIZ_MODE":
+            toggleQuizMode()
+        case "OBJECT_DETECTION":
+            pass
+        case "DISTANCE_CHECK":
+            pass
+        case "DESCRIBE_LETTER":
+            pass
+        case "REPEAT_DESCRIPTION":
+            pass
+        case "ANSWER":
+            pass
+        case "DENY":
+            pass
+        case "GREET":
+            Greetings()
+        case "STATE_MODE":
+            print(str(PROMPT_MAP))
+            pass
+        case "TIME_QUERY":
+            TimeQuery()
+        case "DATE_QUERY":
+            DateQuery()
 
 def CheckForKeywords(text):
     command_flag = get_best_match(text)
@@ -240,6 +243,50 @@ def CheckForKeywords(text):
         TTS("Sorry, I didn’t understand that. Try saying 'help me'.")
 
 
+def Greetings():
+    randomGreeting = random.randrange(0, 4)
+    match randomGreeting:
+        case 0:
+            print("greetings 0")
+            TTS("Hey")
+        case 1:
+            print("greetings 1")
+            TTS("Hi")
+        case 2:
+            print("greetings 2")
+            TTS("Hello")
+        case 3:
+            print("greetings 3")
+            TTS("What's up")
+
+def TimeQuery():
+    global current_time
+    randomTimeQuery = random.randrange(0, 3)
+    match randomTimeQuery:
+        case 0:
+            print("time query 0")
+            TTS("It is currently " + str(current_time))
+        case 1:
+            print("time query 1")
+            TTS("The time is " + str(current_time))
+        case 2:
+            print("time query 2")
+            TTS(str(current_time))
+        
+def DateQuery():
+    global today
+    randomDateQuery = random.randrange(0, 2)
+    match randomDateQuery:
+        case 0:
+            print("date query 0")
+            TTS("The current date is " + str(today))
+        case 1:
+            print("date query 1")
+            TTS("Today is " + str(today))
+        case 2:
+            print("date query 2")
+            TTS(str(today))
+    
 client = speech.SpeechClient() #Google API Client
 
 #Microphone Initialization
@@ -282,8 +329,15 @@ activeEducMode = False
 activeQuizMode = False
 activeLearnMode = False
 activeQuestion = False
+activeDetectMode = False
 
 PROMPT_MAP = None
+
+now = datetime.now()
+current_time = datetime.now().strftime("%I:%M %p")
+today = datetime.now().date()
+print("Current Time:", current_time)
+print("Current Date:", today)
 
 def main():
     funcButton4.on_tap = lambda: toggleMode()

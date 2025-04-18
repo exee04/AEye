@@ -13,7 +13,7 @@ def startDetection():
     picam2.start()
 
     # Load YOLOv8 model
-    model = YOLO("best_ncnn_model")  # Replace with your actual model path
+    model = YOLO("/home/ky/AEye/AI_Models/best_ncnn_model")  # Replace with your actual model path
 
     try:
         while True:
@@ -39,7 +39,7 @@ def startDetection():
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-            time.sleep(0.1)  # Small delay to avoid maxing out CPU usage
+            time.sleep(0.2)  # Small delay to avoid maxing out CPU usage
 
     except KeyboardInterrupt:
         print("\nStopped by user.")
