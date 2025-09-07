@@ -1,0 +1,6 @@
+venv/
+test/
+config/
+cache/*
+
+!cache/.gitkeep
