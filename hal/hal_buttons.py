@@ -1,6 +1,7 @@
 # hal/hal_buttons.py
 import asyncio
 import time
+import threading
 from gpiozero import Button, Device
 
 # Detect if running on Pi
@@ -11,26 +12,30 @@ def is_raspberry_pi():
     except FileNotFoundError:
         return False
 
+# Use MockFactory when testing off Pi
 if not is_raspberry_pi():
     from gpiozero.pins.mock import MockFactory
     Device.pin_factory = MockFactory()
     print("[ButtonHAL] Using MockFactory (not on Raspberry Pi)")
+    import keyboard  # pip install keyboard
 
 class ButtonHAL:
     def __init__(self, bus, loop, hold_time=0.5):
         self.bus = bus
         self.loop = loop
         self.hold_time = hold_time
+        self.press_times = {}
+
         print("[ButtonHAL] Initializing buttons...")
 
-        # Define all buttons
-        self.button1 = Button(17)   # Education / ScoreCheck
-        self.button2 = Button(27)   # ObjectDetect / Wi-Fi
-        self.button3 = Button(22)   # DistanceCheck / BatteryCheck
-        self.button4 = Button(23)   # Mode toggle / PowerOff
-        self.volUp   = Button(5)    # Volume Up
-        self.volDown = Button(6)    # Volume Down
-        self.mainBtn = Button(24)   # Main button (for speech/AI)
+        # Define buttons (on real Pi these are GPIO pins)
+        self.button1 = Button(17)
+        self.button2 = Button(27)
+        self.button3 = Button(22)
+        self.button4 = Button(23)
+        self.volUp   = Button(5)
+        self.volDown = Button(6)
+        self.mainBtn = Button(24)
 
         self.buttons = {
             17: self.button1,
@@ -42,15 +47,17 @@ class ButtonHAL:
             24: self.mainBtn
         }
 
-        # Track press times
-        self.press_times = {}
-
-        # Attach events for all buttons
+        # Attach events for real hardware
         for pin, btn in self.buttons.items():
             btn.when_pressed = lambda pin=pin: self.on_press(pin)
             btn.when_released = lambda pin=pin: self.on_release(pin)
 
         print("[ButtonHAL] Buttons ready:", list(self.buttons.keys()))
+
+        # If not on Pi, also start keyboard listener
+        if not is_raspberry_pi():
+            threading.Thread(target=self._keyboard_loop, daemon=True).start()
+            print("[ButtonHAL] Keyboard mock active (a,s,d,f,q,w,e)")
 
     def on_press(self, pin):
         """Record timestamp when button is pressed"""
@@ -75,3 +82,26 @@ class ButtonHAL:
                 self.bus.publish("button_press", {"pin": pin}),
                 self.loop
             )
+
+    # 🔹 Keyboard Simulation
+    def _keyboard_loop(self):
+        keymap = {
+            "a": 17,  # Button1
+            "s": 27,  # Button2
+            "d": 22,  # Button3
+            "f": 23,  # Button4
+            "q": 5,   # Volume Up
+            "w": 6,   # Volume Down
+            "e": 24   # Main Button
+        }
+
+        while True:
+            for key, pin in keymap.items():
+                if keyboard.is_pressed(key):
+                    if pin not in self.press_times:  # only register once
+                        self.on_press(pin)
+                else:
+                    if pin in self.press_times:  # was pressed before, now released
+                        self.on_release(pin)
+                        del self.press_times[pin]
+            time.sleep(0.05)  # 20Hz polling
