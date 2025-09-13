@@ -1,31 +1,40 @@
-# main.py
 import asyncio
 from core.event_bus import EventBus
-from hal.hal_buttons import ButtonHAL
 from core.state_machine import StateMachine
+from hal.hal_buttons import ButtonHAL
+from hal.hal_audio import AudioHAL
 from modes.learn_mode import LearnMode
 from modes.quiz_mode import QuizMode
+from modes.scorecheck_mode import ScoreCheckMode
+from modes.wifi_mode import WifiMode
+from modes.battery_mode import BatteryMode
+from modes.volume_mode import VolumeMode
+
+
 
 async def main():
-    print("[MAIN] Starting system...")
-
+    loop = asyncio.get_event_loop()
     bus = EventBus()
-    loop = asyncio.get_running_loop()
+    StateMachine(bus)
 
-    # Hardware abstraction layer
-    button_hal = ButtonHAL(bus, loop)
-
-    # State machine
-    sm = StateMachine(bus)
+    # HALs
+    ButtonHAL(bus, loop)
+    AudioHAL(bus)
 
     # Modes
-    learn_mode = LearnMode(bus)
-    quiz_mode = QuizMode(bus)
+    LearnMode(bus)
+    QuizMode(bus)
+    ScoreCheckMode(bus)
+    WifiMode(bus)
+    BatteryMode(bus)
+    VolumeMode(bus)
 
-    print("[MAIN] System ready. Press GPIO 17 for Learn, 27 for Quiz, 23 to return Idle.")
 
+
+    print("[Main] System initialized. Press buttons to test.")
     while True:
         await asyncio.sleep(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
