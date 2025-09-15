@@ -10,6 +10,7 @@ from core.system_state import SystemState
 from hal.hal_buttons import ButtonHAL
 from hal.hal_audio import AudioHAL
 from hal.hal_camera import CameraHAL
+from hal.hal_speech import SpeechHAL
 
 # Modes - Education (parent + sub-modes)
 from modes.education.education_mode import EducationMode
@@ -21,7 +22,6 @@ from modes.education.education_quiz_mode import EducationQuizMode
 from modes.scorecheck_mode import ScoreCheckMode
 from modes.wifi_mode import WifiMode
 from modes.volume_mode import VolumeMode
-
 
 async def thermal_monitor():
     """Print CPU temperature every 10 seconds (Raspberry Pi only)."""
@@ -46,7 +46,8 @@ async def main():
     # HALs
     camera = CameraHAL(bus, state, show_preview=True)
     ButtonHAL(bus, asyncio.get_event_loop())
-    AudioHAL(bus, state=state, i18n=None)  # Simplified, add i18n later
+    AudioHAL(bus, state=state, i18n=None)
+    SpeechHAL(bus)  # Simplified, add i18n later
     # Modes
     # Education: parent + sub-modes
     EducationMode(bus)
@@ -67,7 +68,6 @@ async def main():
     while True:
         camera.update()
         await asyncio.sleep(0.01)
-
 
 if __name__ == "__main__":
     asyncio.run(main())

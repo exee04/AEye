@@ -21,6 +21,7 @@ if not is_raspberry_pi():
 
 class ButtonHAL:
     def __init__(self, bus, loop, hold_time=0.5):
+        self.held_flags = {}
         self.bus = bus
         self.loop = loop
         self.hold_time = hold_time
@@ -51,6 +52,7 @@ class ButtonHAL:
         for pin, btn in self.buttons.items():
             btn.when_pressed = lambda pin=pin: self.on_press(pin)
             btn.when_released = lambda pin=pin: self.on_release(pin)
+            btn.when_held = lambda pin=pin: self.on_hold(pin)
 
         print("[ButtonHAL] Buttons ready:", list(self.buttons.keys()))
 
@@ -59,29 +61,45 @@ class ButtonHAL:
             threading.Thread(target=self._keyboard_loop, daemon=True).start()
             print("[ButtonHAL] Keyboard mock active (a,s,d,f,q,w,e)")
 
+    def on_hold(self, pin):
+        """Triggered once when hold_time is exceeded while button is held"""
+        print(f"[ButtonHAL] Button {pin} is being HELD (on_hold)")
+        self.held_flags[pin] = True
+        asyncio.run_coroutine_threadsafe(
+            self.bus.publish("button_hold", {"pin": pin, "duration": self.hold_time}),
+            self.loop
+        )
+
     def on_press(self, pin):
         """Record timestamp when button is pressed"""
         self.press_times[pin] = time.time()
         print(f"[ButtonHAL] Button {pin} pressed at {self.press_times[pin]}")
 
     def on_release(self, pin):
-        """Determine if press was a TAP or a HOLD"""
+        """Handle button release (decide if it was a tap or just release after hold)"""
         pressed_at = self.press_times.get(pin, time.time())
         duration = time.time() - pressed_at
         print(f"[ButtonHAL] Button {pin} released after {duration:.2f}s")
 
-        if duration >= self.hold_time:
-            print(f"[ButtonHAL] Button {pin} was HELD")
-            asyncio.run_coroutine_threadsafe(
-                self.bus.publish("button_hold", {"pin": pin, "duration": duration}),
-                self.loop
-            )
+        # Always publish release event
+        asyncio.run_coroutine_threadsafe(
+            self.bus.publish("button_release", {"pin": pin, "duration": duration}),
+            self.loop
+        )
+
+        if self.held_flags.get(pin, False):
+            # Was a hold → already handled in on_hold, don’t double fire
+            print(f"[ButtonHAL] Button {pin} released after HOLD (no tap event)")
+            self.held_flags[pin] = False
         else:
-            print(f"[ButtonHAL] Button {pin} was TAPPED")
-            asyncio.run_coroutine_threadsafe(
-                self.bus.publish("button_press", {"pin": pin}),
-                self.loop
-            )
+            # Was a tap
+            if duration < self.hold_time:
+                print(f"[ButtonHAL] Button {pin} was TAPPED")
+                asyncio.run_coroutine_threadsafe(
+                    self.bus.publish("button_press", {"pin": pin}),
+                    self.loop
+                )
+
 
     # 🔹 Keyboard Simulation
     def _keyboard_loop(self):
@@ -95,13 +113,29 @@ class ButtonHAL:
             "e": 24   # Main Button
         }
 
+        # Track which keys have already triggered "held"
+        held_flags = {}
+
         while True:
             for key, pin in keymap.items():
                 if keyboard.is_pressed(key):
-                    if pin not in self.press_times:  # only register once
+                    if pin not in self.press_times:
+                        # first time pressed
                         self.on_press(pin)
+                        self.press_times[pin] = time.time()
+                        held_flags[pin] = False
+                    else:
+                        # check if it's now considered a hold
+                        duration = time.time() - self.press_times[pin]
+                        if duration >= self.hold_time and not held_flags.get(pin, False):
+                            self.on_hold(pin)
+                            held_flags[pin] = True
                 else:
-                    if pin in self.press_times:  # was pressed before, now released
+                    if pin in self.press_times:
+                        # key was released
                         self.on_release(pin)
                         del self.press_times[pin]
+                        if pin in held_flags:
+                            del held_flags[pin]
+
             time.sleep(0.05)  # 20Hz polling
