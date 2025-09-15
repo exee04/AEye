@@ -1,5 +1,6 @@
 # hal/hal_camera.py
 import cv2
+import asyncio
 
 try:
     from picamera2 import Picamera2
@@ -10,14 +11,6 @@ except ImportError:
 
 class CameraHAL:
     def __init__(self, bus, state, show_preview=True, resolution=(640, 480)):
-        """
-        Camera HAL: supports PiCamera2 (Raspberry Pi) and cv2 webcam (Laptop).
-        
-        :param bus: EventBus instance
-        :param state: SystemState instance
-        :param show_preview: Whether to show live camera feed (debug)
-        :param resolution: Camera resolution (width, height)
-        """
         self.bus = bus
         self.state = state
         self.show_preview = show_preview
@@ -25,8 +18,8 @@ class CameraHAL:
 
         self.cap = None
         self.pi_cam = None
+        self.using_pi = False
 
-        # Start camera
         self._init_camera()
 
     def _init_camera(self):
@@ -34,15 +27,18 @@ class CameraHAL:
         if PI_CAMERA_AVAILABLE:
             try:
                 self.pi_cam = Picamera2()
-                config = self.pi_cam.create_preview_configuration(main={"size": self.resolution})
+                config = self.pi_cam.create_preview_configuration(
+                    main={"size": self.resolution}
+                )
                 self.pi_cam.configure(config)
                 self.pi_cam.start()
-                print("[CameraHAL] Using PiCamera2")
+                self.using_pi = True
+                print("[CameraHAL] Using PiCamera2 with cv2 preview")
                 return
             except Exception as e:
                 print(f"[CameraHAL] PiCamera2 init failed: {e}. Falling back to cv2 webcam.")
 
-        # Fallback: cv2 webcam
+        # fallback webcam
         self.cap = cv2.VideoCapture(0)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
@@ -52,38 +48,57 @@ class CameraHAL:
         print("[CameraHAL] Using cv2 webcam")
 
     def get_frame(self):
-        """Get one frame from whichever camera is active."""
-        if self.pi_cam:
-            return self.pi_cam.capture_array()
+        """Grab a frame from PiCamera2 or cv2 webcam."""
+        if self.using_pi:
+            frame = self.pi_cam.capture_array()
+            # PiCamera2 gives RGB → convert to BGR for OpenCV
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            return frame
         elif self.cap:
             ret, frame = self.cap.read()
             return frame if ret else None
-        else:
-            return None
+        return None
 
     def update(self):
-        """
-        Called in a loop to grab frames.
-        Only active if Education mode is running.
-        """
-        if self.state.current_mode != "education":
-            return  # pause camera when not in education mode
-
+        """Continuously fetch frames and show preview if enabled."""
         frame = self.get_frame()
         if frame is None:
             print("❌ Camera frame not available")
             return
 
-        # Show preview if enabled
+        # =============================
+        # Debug overlays
+        # =============================
+        mode_text = f"Mode: {self.state.current_mode}"
+        layer_text = "Layer: Primary" if self.state.primary else "Layer: Secondary"
+
+        cv2.putText(frame, mode_text, (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1,
+                    (0, 255, 0), 2, cv2.LINE_AA)
+
+        cv2.putText(frame, layer_text, (10, 70),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1,
+                    (255, 255, 0), 2, cv2.LINE_AA)
+
+        if self.state.current_mode == "education":
+            submode_text = f"Submode: {self.state.education_submode}"
+            cv2.putText(frame, submode_text, (10, 110),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1,
+                        (0, 200, 255), 2, cv2.LINE_AA)
+
+        # =============================
+        # Show preview
+        # =============================
         if self.show_preview:
             cv2.imshow("CameraHAL Preview", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("[CameraHAL] Quit requested")
                 self.release()
 
-        # For now, just publish "frame_ready"
-        # (later: YOLO, ArUco, MediaPipe analysis)
-        self.bus.publish("frame_ready", {"frame": frame})
+        # Publish "frame_ready" event
+        asyncio.get_event_loop().create_task(
+            self.bus.publish("frame_ready", {"frame": frame})
+        )
 
     def release(self):
         """Release camera resources."""

@@ -11,6 +11,7 @@ class AudioHAL:
         bus.subscribe("toggle_language", self.toggle_language)
 
     async def speak(self, data):
+        lang = self.state.language 
         key = data.get("key")
         text = data.get("text")
 
