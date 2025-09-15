@@ -4,10 +4,12 @@ import asyncio
 # Core
 from core.event_bus import EventBus
 from core.state_machine import StateMachine
+from core.system_state import SystemState
 
 # HALs
 from hal.hal_buttons import ButtonHAL
 from hal.hal_audio import AudioHAL
+from hal.hal_camera import CameraHAL
 
 # Modes - Education (parent + sub-modes)
 from modes.education.education_mode import EducationMode
@@ -23,13 +25,16 @@ from modes.volume_mode import VolumeMode
 
 async def main():
     # Core setup
+    print("cam test")
     bus = EventBus()
+    state = SystemState()
     StateMachine(bus)
 
     # HALs
+    CameraHAL(bus, state, show_preview=True)
     ButtonHAL(bus, asyncio.get_event_loop())
-    AudioHAL(bus)
-
+    AudioHAL(bus, state=state, i18n=None)  # Simplified, add i18n later
+    print("cam test")
     # Modes
     # Education: parent + sub-modes
     EducationMode(bus)
@@ -41,6 +46,7 @@ async def main():
     ScoreCheckMode(bus)
     WifiMode(bus)
     VolumeMode(bus)
+    
 
     print("[Main] System initialized. Press buttons to test navigation.")
 
