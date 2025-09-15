@@ -5,6 +5,7 @@ import asyncio
 from core.event_bus import EventBus
 from core.state_machine import StateMachine
 from core.system_state import SystemState
+from core.services.google_speech import GoogleSpeechService
 
 # HALs
 from hal.hal_buttons import ButtonHAL
@@ -55,10 +56,13 @@ async def main():
     EducationLearnMode(bus)
     EducationQuizMode(bus)
 
-    # Other modes
+    # Secondary modes
     ScoreCheckMode(bus)
     WifiMode(bus)
     VolumeMode(bus)
+
+    # Google Cloud services
+    GoogleSpeechService(bus, state)
     
     asyncio.create_task(thermal_monitor())
 
