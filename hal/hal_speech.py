@@ -110,7 +110,6 @@ class SpeechHAL:
             print("[SpeechHAL] Main button tapped → (reserved for future quick actions)")
 
     async def on_button_release(self, data):
-        """Stop recording and save when main button is released"""
         pin = data.get("pin")
         if pin == 24 and self.recording:
             self.recording = False
@@ -134,18 +133,16 @@ class SpeechHAL:
                 with self.file_lock:
                     write(self.cache_file, self.sample_rate, audio_data)
                 print(f"[SpeechHAL] Audio saved → {self.cache_file}")
+
+                # ✅ Instead of STT here → hand off to GoogleSpeechService
+                await self.bus.publish("speech_process", {
+                    "file": self.cache_file,
+                    "sample_rate": self.sample_rate
+                })
             else:
                 print("[SpeechHAL] WARNING: No audio frames captured!")
 
-            # Fake STT (placeholder)
-            mock_text = "this is a mock speech-to-text result"
-            print(f"[SpeechHAL] Mock STT result: '{mock_text}'")
-            await self.bus.publish("speech_result", {
-                "file": self.cache_file,
-                "text": mock_text
-            })
-
-    def get_audio_file(self):
-        """Return last recorded file if exists"""
-        with self.file_lock:
-            return self.cache_file if os.path.exists(self.cache_file) else None
+        def get_audio_file(self):
+            """Return last recorded file if exists"""
+            with self.file_lock:
+                return self.cache_file if os.path.exists(self.cache_file) else None

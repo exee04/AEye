@@ -12,33 +12,45 @@ class GoogleSpeechService:
         self.bus.subscribe("speech_process", self.process_audio)
 
     async def process_audio(self, data):
-        """Send audio to Google Speech API and return text result."""
+        """Send audio file to Google STT"""
         file_path = data.get("file")
+        rate = data.get("sample_rate", 16000)
         if not file_path:
             print("[GoogleSpeechService] No file provided")
             return
 
-        print(f"[GoogleSpeechService] Processing file: {file_path}")
+        print(f"[GoogleSpeechService] Processing file: {file_path} (rate={rate})")
 
-        # TODO: Load audio file for real API request
-        # with open(file_path, "rb") as audio_file:
-        #     content = audio_file.read()
+        try:
+            with open(file_path, "rb") as audio_file:
+                content = audio_file.read()
 
-        # audio = speech.RecognitionAudio(content=content)
-        # config = speech.RecognitionConfig(
-        #     encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-        #     sample_rate_hertz=16000,
-        #     language_code=self.state.language  # en-US or fil-PH
-        # )
-        # response = self.client.recognize(config=config, audio=audio)
-        # transcript = response.results[0].alternatives[0].transcript
+            audio = speech.RecognitionAudio(content=content)
+            config = speech.RecognitionConfig(
+                encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+                sample_rate_hertz=rate,
+                language_code=self.state.language  # "en-US" or "fil-PH"
+            )
 
-        # Mock result for now
-        transcript = "mock speech-to-text result"
-        print(f"[GoogleSpeechService] Mock transcript: {transcript}")
+            # Run STT in background thread to not block asyncio loop
+            response = await asyncio.to_thread(
+                self.client.recognize, config=config, audio=audio
+            )
 
-        # Publish final result
-        await self.bus.publish("speech_result", {
-            "file": file_path,
-            "text": transcript
-        })
+            transcript = (
+                response.results[0].alternatives[0].transcript
+                if response.results else ""
+            )
+
+            print(f"[GoogleSpeechService] Transcript: '{transcript}'")
+            await self.bus.publish("speech_result", {
+                "file": file_path,
+                "text": transcript
+            })
+
+        except Exception as e:
+            print(f"[GoogleSpeechService] Error: {e}")
+            await self.bus.publish("speech_result", {
+                "file": file_path,
+                "text": ""
+            })
