@@ -5,8 +5,11 @@ import asyncio
 from core.event_bus import EventBus
 from core.state_machine import StateMachine
 from core.system_state import SystemState
+
+# Core Services
 from core.services.google_speech import GoogleSpeechService
 from core.services.supabase_client import SupabaseService
+from core.services.network_service import NetworkService
 
 # HALs
 from hal.hal_buttons import ButtonHAL
@@ -46,6 +49,7 @@ async def main():
     sm = StateMachine(bus, state)
     supabase = SupabaseService()
     supabase.test_connection("user")
+    NetworkService(bus, state)
 
     # HALs
     camera = CameraHAL(bus, state, show_preview=True)
@@ -61,7 +65,7 @@ async def main():
 
     # Secondary modes
     ScoreCheckMode(bus)
-    WifiMode(bus)
+    WifiMode(bus, state)
     VolumeMode(bus)
 
     # Google Cloud services

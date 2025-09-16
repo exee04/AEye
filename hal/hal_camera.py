@@ -69,6 +69,9 @@ class CameraHAL:
         # =============================
         # Debug overlays
         # =============================
+
+        
+
         mode_text = f"Mode: {self.state.current_mode}"
         layer_text = "Layer: Primary" if self.state.primary else "Layer: Secondary"
 
@@ -85,6 +88,10 @@ class CameraHAL:
             cv2.putText(frame, submode_text, (10, 110),
                         cv2.FONT_HERSHEY_SIMPLEX, 1,
                         (0, 200, 255), 2, cv2.LINE_AA)
+
+        net_text = f"Network: {self.state.network_status}"
+        cv2.putText(frame, net_text, (10, 150),
+            cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
 
         # =============================
         # Show preview

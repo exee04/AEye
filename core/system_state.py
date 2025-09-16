@@ -5,6 +5,7 @@ class SystemState:
         self.primary = True
         self.education_submode = "idle"
         self.language = "en"   # default language for TTS ("en" / "fil")
+        self.network_status = "Unknown"
 
     def switch_mode(self, new_mode: str):
         print(f"[SystemState] Mode change: {self.current_mode} → {new_mode}")
