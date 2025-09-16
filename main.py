@@ -6,6 +6,7 @@ from core.event_bus import EventBus
 from core.state_machine import StateMachine
 from core.system_state import SystemState
 from core.services.google_speech import GoogleSpeechService
+from core.services.supabase_client import SupabaseService
 
 # HALs
 from hal.hal_buttons import ButtonHAL
@@ -43,6 +44,8 @@ async def main():
     bus = EventBus()
     state = SystemState()
     sm = StateMachine(bus, state)
+    supabase = SupabaseService()
+    supabase.test_connection("user")
 
     # HALs
     camera = CameraHAL(bus, state, show_preview=True)
