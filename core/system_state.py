@@ -6,6 +6,10 @@ class SystemState:
         self.education_submode = "idle"
         self.language = "en"   # default language for TTS ("en" / "fil")
         self.network_status = "Unknown"
+        self.volume = 100
+        self.VOLUME_MAX = 240
+        self.VOLUME_MIN = 0
+        
 
     def switch_mode(self, new_mode: str):
         print(f"[SystemState] Mode change: {self.current_mode} → {new_mode}")
@@ -28,3 +32,21 @@ class SystemState:
         """Switch between English and Filipino"""
         self.language = "fil" if self.language == "en" else "en"
         print(f"[SystemState] Language switched → {self.language}")
+
+    def volumeUp(self):
+        if self.volume < self.VOLUME_MAX:            
+            self.volume = self.volume + 20
+            print(f"[SystemState] Volume Increased: " + str(self.volume))
+        else:
+            self.volume = self.VOLUME_MAX
+            print(f"[SystemState] Volume Max!: " + str(self.volume))
+
+
+    def volumeDown(self):
+        if self.volume > self.VOLUME_MIN:
+            self.volume = self.volume - 20
+            print(f"[SystemState] Volume Decreased: " + str(self.volume))
+        else:
+            self.volume = self.VOLUME_MIN
+            print(f"[SystemState] Volume Muted: " + str(self.volume))
+

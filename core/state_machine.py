@@ -12,7 +12,12 @@ class StateMachine:
         print(f"[StateMachine] Button {pin} pressed, "
               f"state={self.state.current_mode}, "
               f"layer={'primary' if self.state.primary else 'secondary'}")
-
+        if pin == 6:
+            self.state.volumeUp()
+        
+        if pin == 5:
+            self.state.volumeDown()
+            
         if pin == 23:  # toggle primary/secondary
             self.state.toggle_layer()
             if self.state.current_mode != "idle":
@@ -35,6 +40,8 @@ class StateMachine:
                 await self.switch_state("wifi")
             elif pin == 27:
                 await self.switch_state("volume")
+
+        
 
     async def switch_state(self, new_state):
         """Switch top-level states (education, scorecheck, wifi, volume)"""
