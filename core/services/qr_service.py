@@ -3,8 +3,9 @@ import json
 import asyncio
 
 class QRService:
-    def __init__(self, bus):
+    def __init__(self, bus, state):
         self.bus = bus
+        self.state = state
         self.detector = cv2.QRCodeDetector()
         print("[QRService] Initialized and listening for QR codes")
 
@@ -12,6 +13,8 @@ class QRService:
         self.bus.subscribe("frame_ready", self.on_frame)
 
     async def on_frame(self, data):
+        if self.state.needQR == False:
+            return
         frame = data.get("frame")
         if frame is None:
             return

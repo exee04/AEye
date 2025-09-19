@@ -19,6 +19,8 @@ class CameraHAL:
         self.cap = None
         self.pi_cam = None
         self.using_pi = False
+        self.qr_data = None
+        bus.subscribe("qr_detected", self.on_qr_detected)
 
         self._init_camera()
 
@@ -69,12 +71,21 @@ class CameraHAL:
         # =============================
         # Debug overlays
         # =============================
-
+    
         
 
         mode_text = f"Mode: {self.state.current_mode}"
         layer_text = "Layer: Primary" if self.state.primary else "Layer: Secondary"
+        volume = "Volume: " + str(self.state.volume)
 
+        if self.qr_data:
+            cv2.putText(frame, f"QR: {self.qr_data[:30]}...", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+
+        cv2.putText(frame, volume, (435, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1,
+                    (0,225,0), 2, cv2.LINE_AA)
+        
         cv2.putText(frame, mode_text, (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1,
                     (0, 255, 0), 2, cv2.LINE_AA)
@@ -98,7 +109,7 @@ class CameraHAL:
         # =============================
         if self.show_preview:
             cv2.imshow("CameraHAL Preview", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord('p'):
                 print("[CameraHAL] Quit requested")
                 self.release()
 
@@ -115,3 +126,6 @@ class CameraHAL:
             self.cap.release()
         cv2.destroyAllWindows()
         print("[CameraHAL] Camera released")
+
+    async def on_qr_detected(self, data):
+        self.qr_data = data.get("raw")
