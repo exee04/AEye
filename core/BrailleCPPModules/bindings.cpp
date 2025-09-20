@@ -9,7 +9,8 @@ PYBIND11_MODULE(braille_cpp, m) {
     py::class_<BrailleCluster>(m, "BrailleCluster")
         .def_readwrite("letter", &BrailleCluster::letter)
         .def_readwrite("dot_array", &BrailleCluster::dot_array)
-        .def_readwrite("bbox", &BrailleCluster::bbox);
+        .def_readwrite("bbox", &BrailleCluster::bbox)
+        .def_readwrite("center", &BrailleCluster::center);
 
     py::class_<cv::Rect>(m, "Rect")
         .def_readwrite("x", &cv::Rect::x)

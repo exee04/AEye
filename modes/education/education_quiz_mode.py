@@ -5,54 +5,48 @@ import random
 class EducationQuizMode:
     def __init__(self, bus):
         self.bus = bus
-        self.is_active = False
-        self.current_question = None
-        self.questions = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", 
-                         "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", 
-                         "U", "V", "W", "X", "Y", "Z"]
+        self.current_letter = None
+        self.correct_count = 0
+        self.total_attempts = 0
         bus.subscribe("enter_education_quiz_mode", self.enter)
         bus.subscribe("exit_education_quiz_mode", self.exit)
-        bus.subscribe("braille_letter_detected", self.on_letter_detected)
+        bus.subscribe("letter_selected", self.on_letter_selected)
 
     async def enter(self, data):
         print("[EducationQuizMode] ENTER")
-        self.is_active = True
-        await self.bus.publish("tts", {"text": "Education sub-mode: Quiz. I will ask you to find letters."})
-        await self.bus.publish("education_mode_entered", {"submode": "quiz"})
-        await self.ask_question()
+        self.correct_count = 0
+        self.total_attempts = 0
+        await self.bus.publish("tts", {"text": "Quiz mode activated. Touch any braille letter and I'll tell you what it is."})
 
     async def exit(self, data):
         print("[EducationQuizMode] EXIT")
-        self.is_active = False
-        await self.bus.publish("education_mode_exited", {"submode": "quiz"})
-        
-    async def ask_question(self):
-        """Ask a random letter question"""
-        if not self.is_active:
-            return
+        self.current_letter = None
+        if self.total_attempts > 0:
+            accuracy = (self.correct_count / self.total_attempts) * 100
+            await self.bus.publish("tts", {"text": f"Quiz session complete. You got {self.correct_count} out of {self.total_attempts} correct. That's {accuracy:.0f} percent accuracy!"})
+
+    async def on_letter_selected(self, data):
+        """Handle when a letter is selected in quiz mode"""
+        if data.get("mode") == "quiz":
+            letter = data.get("letter")
+            self.current_letter = letter
+            self.total_attempts += 1
+            print(f"[EducationQuizMode] Letter selected: {letter}")
             
-        self.current_question = random.choice(self.questions)
-        print(f"[EducationQuizMode] Asking for letter: {self.current_question}")
-        await self.bus.publish("tts", {"text": f"Can you find the letter {self.current_question}?"})
-        
-    async def on_letter_detected(self, data):
-        """Handle detected braille letter in quiz mode"""
-        if not self.is_active or not self.current_question:
-            return
+            # Always provide feedback for blind users
+            await self.bus.publish("tts", {"text": f"You touched the letter {letter}"})
             
-        letter = data.get("letter", "?")
-        dot_pattern = data.get("dot_pattern", "")
-        
-        print(f"[EducationQuizMode] Letter detected: {letter} (pattern: {dot_pattern})")
-        
-        if letter == self.current_question:
-            # Correct answer
-            await self.bus.publish("tts", {"text": f"Correct! That is the letter {letter}. Well done!"})
-            await asyncio.sleep(2)  # Wait a bit before next question
-            await self.ask_question()
-        elif letter != "?":
-            # Wrong answer
-            await self.bus.publish("tts", {"text": f"That is the letter {letter}. Try to find {self.current_question}."})
-        else:
-            # Unknown pattern
-            await self.bus.publish("tts", {"text": "I don't recognize that pattern. Try to find the letter I asked for."})
+            # Give additional feedback based on letter
+            if letter in ["A", "E", "I", "O", "U"]:
+                await asyncio.sleep(1)
+                await self.bus.publish("tts", {"text": f"{letter} is a vowel"})
+            elif letter in ["B", "C", "D", "F", "G", "H", "J", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "X", "Y", "Z"]:
+                await asyncio.sleep(1)
+                await self.bus.publish("tts", {"text": f"{letter} is a consonant"})
+            
+            # Mark as correct (since they're learning by touching)
+            self.correct_count += 1
+            
+            # Wait a bit before allowing next selection
+            await asyncio.sleep(2)
+            await self.bus.publish("tts", {"text": "Touch another letter to continue learning"})
