@@ -1,0 +1,3 @@
+/home/ky/Desktop/AEye/core/BrailleCPPModules/build/CMakeFiles/braille_cpp.dir
+/home/ky/Desktop/AEye/core/BrailleCPPModules/build/CMakeFiles/edit_cache.dir
+/home/ky/Desktop/AEye/core/BrailleCPPModules/build/CMakeFiles/rebuild_cache.dir

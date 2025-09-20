@@ -7,6 +7,7 @@ from core.state_machine import StateMachine
 from core.system_state import SystemState
 from core.services.qr_service import QRService
 from core.services.wifi_service import WifiService
+from core.BrailleDetect import BrailleDetect
 
 # Core Services
 from core.services.google_speech import GoogleSpeechService
@@ -53,6 +54,7 @@ async def main():
     NetworkService(bus, state)
     WifiService(bus,state)
     QRService(bus, state)
+    BrailleDetect(bus)
 
     # HALs
     camera = CameraHAL(bus, state, show_preview=True)

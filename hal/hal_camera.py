@@ -103,6 +103,23 @@ class CameraHAL:
         net_text = f"Network: {self.state.network_status}"
         cv2.putText(frame, net_text, (10, 150),
             cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+            
+        # Braille detection status
+        if self.state.current_mode == "education":
+            braille_status = "Braille Detection: ACTIVE"
+            cv2.putText(frame, braille_status, (10, 190),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            
+            # Instructions
+            if self.state.education_submode == "learn":
+                instruction = "Touch a braille letter to hear it"
+            elif self.state.education_submode == "quiz":
+                instruction = "Find the letter I ask for"
+            else:
+                instruction = "Braille detection ready"
+                
+            cv2.putText(frame, instruction, (10, 220),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
         # =============================
         # Show preview
