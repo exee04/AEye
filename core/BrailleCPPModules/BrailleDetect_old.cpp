@@ -104,10 +104,6 @@ std::vector<BrailleCluster> BrailleStabilizer::update(const std::vector<BrailleC
 // Global stabilizer instance
 static BrailleStabilizer stabilizer(7, 0.6f);
 
-// Global detection history for normalization
-static std::deque<std::vector<BrailleCluster>> detection_history(7);
-static size_t frame_count = 0;
-
 std::vector<BrailleCluster> detect_braille(const cv::Mat& frame) {
     std::vector<BrailleCluster> clusters;
 
@@ -201,7 +197,7 @@ std::vector<BrailleCluster> detect_braille(const cv::Mat& frame) {
         median_spacing = 10.0f;
     }
     
-    float conn_thresh = median_spacing * 2.2f; // Slightly increased to handle letters with gaps
+    float conn_thresh = median_spacing * 1.8f; // Back to original value for better clustering
     
     // Union-Find for clustering
     std::vector<int> parent(n);
@@ -278,46 +274,14 @@ std::vector<BrailleCluster> detect_braille(const cv::Mat& frame) {
         cluster.letter = '?'; // Will be determined later
         cluster.dot_array = {0, 0, 0, 0, 0, 0}; // Will be determined later
         
-        // Determine dot pattern - improved approach for letters with gaps
+        // Determine dot pattern - simplified approach
         if (indices.size() <= 6) {
             std::vector<int> dot_pattern(6, 0);
             
-            if (indices.size() == 1) {
-                // Single dot - position 0 (dot 1)
-                dot_pattern[0] = 1;
-            } else if (indices.size() == 2) {
-                // Two dots - determine if they're in same row or different rows
-                std::vector<cv::Point2f> sorted_points;
-                for (int idx : indices) {
-                    sorted_points.push_back(coords[idx]);
-                }
-                
-                // Sort by y-coordinate first, then x-coordinate
-                std::sort(sorted_points.begin(), sorted_points.end(), 
-                    [](const cv::Point2f& a, const cv::Point2f& b) {
-                        if (std::abs(a.y - b.y) < 15) {
-                            return a.x < b.x; // Same row: sort by x
-                        }
-                        return a.y < b.y; // Different rows: sort by y
-                    });
-                
-                // Check if dots are in same row (horizontal) or different rows (vertical)
-                float y_diff = std::abs(sorted_points[1].y - sorted_points[0].y);
-                
-                if (y_diff < 15) {
-                    // Same row - likely dots 1 and 2 (positions 0 and 1)
-                    dot_pattern[0] = 1;
-                    dot_pattern[1] = 1;
-                } else {
-                    // Different rows - likely dots 1 and 4 (positions 0 and 3)
-                    dot_pattern[0] = 1;
-                    dot_pattern[3] = 1;
-                }
-            } else {
-                // Multiple dots - use simple sequential mapping
-                for (size_t i = 0; i < indices.size() && i < 6; i++) {
-                    dot_pattern[i] = 1;
-                }
+            // Simple mapping: just fill the first N positions with 1s
+            // This is more robust than complex grid mapping
+            for (size_t i = 0; i < indices.size() && i < 6; i++) {
+                dot_pattern[i] = 1;
             }
             
             cluster.dot_array = dot_pattern;
@@ -364,91 +328,8 @@ std::vector<BrailleCluster> detect_braille(const cv::Mat& frame) {
     // Debug output
     std::cout << "[BrailleDetect] Created " << clusters.size() << " clusters" << std::endl;
     
-    // Apply normalization directly in detection process
-    frame_count++;
-    
-    if (detection_history.empty()) {
-        // First frame - no normalization
-        detection_history.push_back(clusters);
-        return clusters;
-    }
-    
-    // Normalize current detection with previous frames
-    std::vector<BrailleCluster> normalized_clusters;
-    const auto& prev_clusters = detection_history.back();
-    
-    if (prev_clusters.empty()) {
-        detection_history.push_back(clusters);
-        return clusters;
-    }
-    
-    // Match current clusters with previous clusters for normalization
-    std::vector<bool> used_current(clusters.size(), false);
-    std::vector<bool> used_prev(prev_clusters.size(), false);
-    
-    // Find best matches between current and previous clusters
-    for (size_t i = 0; i < prev_clusters.size(); i++) {
-        float min_distance = std::numeric_limits<float>::infinity();
-        int best_match = -1;
-        
-        for (size_t j = 0; j < clusters.size(); j++) {
-            if (used_current[j]) continue;
-            
-            float dx = prev_clusters[i].center.x - clusters[j].center.x;
-            float dy = prev_clusters[i].center.y - clusters[j].center.y;
-            float distance = std::sqrt(dx * dx + dy * dy);
-            
-            if (distance < min_distance) {
-                min_distance = distance;
-                best_match = j;
-            }
-        }
-        
-        if (best_match != -1 && min_distance < 50.0f) {
-            // Match found - normalize positions
-            const auto& prev_cluster = prev_clusters[i];
-            const auto& curr_cluster = clusters[best_match];
-            
-            BrailleCluster normalized_cluster = curr_cluster;
-            
-            // Weighted average of positions (60% current, 40% previous)
-            float weight_current = 0.6f;
-            float weight_prev = 0.4f;
-            
-            normalized_cluster.center.x = curr_cluster.center.x * weight_current + 
-                                        prev_cluster.center.x * weight_prev;
-            normalized_cluster.center.y = curr_cluster.center.y * weight_current + 
-                                        prev_cluster.center.y * weight_prev;
-            
-            // Weighted average of bounding box
-            normalized_cluster.bbox.x = static_cast<int>(curr_cluster.bbox.x * weight_current + 
-                                                        prev_cluster.bbox.x * weight_prev);
-            normalized_cluster.bbox.y = static_cast<int>(curr_cluster.bbox.y * weight_current + 
-                                                        prev_cluster.bbox.y * weight_prev);
-            normalized_cluster.bbox.width = static_cast<int>(curr_cluster.bbox.width * weight_current + 
-                                                            prev_cluster.bbox.width * weight_prev);
-            normalized_cluster.bbox.height = static_cast<int>(curr_cluster.bbox.height * weight_current + 
-                                                             prev_cluster.bbox.height * weight_prev);
-            
-            normalized_clusters.push_back(normalized_cluster);
-            used_current[best_match] = true;
-            used_prev[i] = true;
-        }
-    }
-    
-    // Add unmatched current clusters as new
-    for (size_t j = 0; j < clusters.size(); j++) {
-        if (!used_current[j]) {
-            normalized_clusters.push_back(clusters[j]);
-        }
-    }
-    
-    // Update detection history
-    detection_history.push_back(normalized_clusters);
-    
-    std::cout << "[BrailleDetect] Normalized to " << normalized_clusters.size() << " stable clusters" << std::endl;
-    
-    return normalized_clusters;
+    // Apply stabilization to smooth out detection
+    return stabilizer.update(clusters);
 }
 
 // Wrapper for Python
