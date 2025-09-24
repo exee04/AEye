@@ -67,6 +67,7 @@ async def main():
     EducationIdleMode(bus)
     EducationLearnMode(bus)
     EducationQuizMode(bus)
+    # Test (learning nvim atm)
 
     # Secondary modes
     ScoreCheckMode(bus)
