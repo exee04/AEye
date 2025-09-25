@@ -52,10 +52,10 @@ class SpeechHAL:
         print(f"           Default samplerate: {self.device_info['default_samplerate']}")
         print(f"           Selected samplerate: {self.sample_rate}")
 
-        # Subscribe to button events
-        bus.subscribe("button_hold", self.on_button_hold)
-        bus.subscribe("button_press", self.on_button_tap)
-        bus.subscribe("button_release", self.on_button_release)
+        # Subscribe to semantic mic events (produced by StateMachine)
+        bus.subscribe("mic_record_start", self.on_mic_record_start)
+        bus.subscribe("mic_record_stop", self.on_mic_record_stop)
+        bus.subscribe("mic_tap", self.on_mic_tap)
 
     def _pick_sample_rate(self):
         """Try common sample rates and return one supported by the device"""
@@ -70,10 +70,10 @@ class SpeechHAL:
         raise RuntimeError("[SpeechHAL] No valid sample rate found for this device")
 
 
-    async def on_button_hold(self, data):
-        """Start recording when main button is held"""
+    async def on_mic_record_start(self, data):
+        """Start recording when mic semantic start event is received"""
         pin = data.get("pin")
-        if pin == 24 and not self.recording:
+        if not self.recording:
             self.recording = True
             self.start_time = time.time()
             self.frames = []
@@ -103,15 +103,14 @@ class SpeechHAL:
             print("Recording...")
             await asyncio.sleep(0.5)
 
-    async def on_button_tap(self, data):
+    async def on_mic_tap(self, data):
         """Quick tap (future use)"""
         pin = data.get("pin")
-        if pin == 24:
-            print("[SpeechHAL] Main button tapped → (reserved for future quick actions)")
+        print("[SpeechHAL] Mic tap received → (reserved for future quick actions)")
 
-    async def on_button_release(self, data):
+    async def on_mic_record_stop(self, data):
         pin = data.get("pin")
-        if pin == 24 and self.recording:
+        if self.recording:
             self.recording = False
             duration = time.time() - self.start_time
             print(f"[SpeechHAL] Recording stopped. Duration: {duration:.2f}s")
@@ -142,7 +141,7 @@ class SpeechHAL:
             else:
                 print("[SpeechHAL] WARNING: No audio frames captured!")
 
-        def get_audio_file(self):
-            """Return last recorded file if exists"""
-            with self.file_lock:
-                return self.cache_file if os.path.exists(self.cache_file) else None
+    def get_audio_file(self):
+        """Return last recorded file if exists"""
+        with self.file_lock:
+            return self.cache_file if os.path.exists(self.cache_file) else None

@@ -6,12 +6,16 @@ class StateMachine:
         print(f"[StateMachine] Initialized in state: {self.state.current_mode}")
 
         self.bus.subscribe("button_press", self.on_button_press)
+        self.bus.subscribe("button_hold", self.on_button_hold)
+        self.bus.subscribe("button_release", self.on_button_release)
 
     async def on_button_press(self, data):
         pin = data.get("pin")
         print(f"[StateMachine] Button {pin} pressed, "
               f"state={self.state.current_mode}, "
               f"layer={'primary' if self.state.primary else 'secondary'}")
+        if pin == 24:
+            await self.bus.publish("mic_tap", {"pin": pin})
         if pin == 6:
             self.state.volumeUp()
         
@@ -39,7 +43,23 @@ class StateMachine:
             if pin == 17:
                 await self.switch_state("wifi")
             elif pin == 27:
+                # Publish a semantic event for secondary button 2
+                await self.bus.publish("secondary_button2_tap", {
+                    "pin": pin,
+                    "mode": self.state.current_mode
+                })
                 await self.switch_state("volume")
+
+    async def on_button_hold(self, data):
+        pin = data.get("pin")
+        if pin == 24:
+            await self.bus.publish("mic_record_start", {"pin": pin})
+
+    async def on_button_release(self, data):
+        pin = data.get("pin")
+        duration = data.get("duration")
+        if pin == 24:
+            await self.bus.publish("mic_record_stop", {"pin": pin, "duration": duration})
 
     async def switch_state(self, new_state):
         """Switch top-level states (education, scorecheck, wifi, volume)"""

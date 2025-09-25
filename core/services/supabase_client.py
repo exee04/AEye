@@ -30,3 +30,29 @@ class SupabaseService:
             print(f"[SupabaseService] Test query result: {resp.data}")
         except Exception as e:
             print(f"[SupabaseService] Connection failed: {e}")
+
+    def check_login(self, table_name: str, uuid: str, username: str) -> bool:
+        """
+        Check if a user with the given uuid + username exists.
+        Returns True if found, False otherwise.
+        """
+        try:
+            resp = (
+                self.client
+                .table(table_name)
+                .select("uuid, username")
+                .eq("uuid", uuid)
+                .eq("username", username)
+                .execute()
+            )
+
+            if resp.data and len(resp.data) > 0:
+                print(f"[SupabaseService] ✅ User found: {resp.data[0]}")
+                return True
+            else:
+                print("[SupabaseService] ❌ User not found.")
+                return False
+
+        except Exception as e:
+            print(f"[SupabaseService] Error during login check: {e}")
+            return False
