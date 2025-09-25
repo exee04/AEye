@@ -22,9 +22,15 @@ class SystemState:
         self.education_submode = "idle"
         self.language = "en"   # default language for TTS ("en" / "fil")
         self.network_status = "Unknown"
-        self.volume = 100
+        
         self.VOLUME_MAX = 240
         self.VOLUME_MIN = 0
+        self.volume = 100
+
+        self.VOICE_SPEED_MAX = 280
+        self.VOICE_SPEED_MIN = 100
+        self.voiceSpeed = 150
+
         self.needQR = False
 
     def switch_mode(self, new_mode: str):
@@ -67,3 +73,19 @@ class SystemState:
             self.volume = self.VOLUME_MIN
             print(f"[SystemState] Volume Muted: " + str(self.volume))
 
+
+    def voiceSpeedIncrease(self):
+        if self.voiceSpeed <= 280:
+            self.voicespeed = self.voiceSpeed + 10
+            print("[SystemState] Increasing Voice Speed to" + str(self.voiceSpeed))
+        else:
+            self.voiceSpeed = self.VOICE_SPEED_MAX
+            print("[SystemState] Voice Speed cannot exceed above " + str(self.VOICE_SPEED_MAX))
+        
+    def voiceSpeedDecrease(self):
+        if self.voiceSpeed >= 100:
+            self.voiceSpeed = self.voiceSpeed - 10
+            print("[SystemState] Decreasing Voice Speed to " + str(self.voiceSpeed))
+        else:
+            self.voicespeed = self.VOICE_SPEED_MIN
+            print("[SystemState] Voice Speed cannot exceed below " + str(self.VOICE_SPEED_MIN))
