@@ -9,6 +9,12 @@ class StateMachine:
         self.bus.subscribe("button_hold", self.on_button_hold)
         self.bus.subscribe("button_release", self.on_button_release)
 
+        # Speech-driven intents
+        self.bus.subscribe("request_switch_state", self.on_request_switch_state)
+        self.bus.subscribe("request_volume_up", self.on_request_volume_up)
+        self.bus.subscribe("request_volume_down", self.on_request_volume_down)
+        self.bus.subscribe("request_education_submode", self.on_request_education_submode)
+
     async def on_button_press(self, data):
         pin = data.get("pin")
         print(f"[StateMachine] Button {pin} pressed, "
@@ -84,3 +90,37 @@ class StateMachine:
         # enter new submode
         await self.bus.publish(f"enter_education_{self.state.education_submode}_mode",
                                {"submode": self.state.education_submode})
+
+    # ===== Speech intent handlers =====
+    async def on_request_switch_state(self, data):
+        target = (data or {}).get("state")
+        print(f"[StateMachine] Speech intent → switch to '{target}'")
+        if target in {"idle", "education", "scorecheck", "wifi", "volume"}:
+            await self.switch_state(target)
+        else:
+            print(f"[StateMachine] Unknown state '{target}' (ignored)")
+
+    async def on_request_volume_up(self, _):
+        print("[StateMachine] Speech intent → volume up")
+        self.state.volumeUp()
+
+    async def on_request_volume_down(self, _):
+        print("[StateMachine] Speech intent → volume down")
+        self.state.volumeDown()
+
+    async def on_request_education_submode(self, data):
+        sub = (data or {}).get("submode")
+        print(f"[StateMachine] Speech intent → education submode '{sub}'")
+        if self.state.current_mode != "education":
+            await self.switch_state("education")
+        if sub in {"learn", "quiz"}:
+            old = self.state.education_submode
+            if old != sub:
+                # Exit current submode
+                await self.bus.publish(f"exit_education_{old}_mode", {"submode": old})
+                self.state.education_submode = sub
+                print(f"[StateMachine] Education submode: {old} → {sub}")
+                # Enter requested submode
+                await self.bus.publish(f"enter_education_{sub}_mode", {"submode": sub})
+        else:
+            print(f"[StateMachine] Unknown education submode '{sub}' (ignored)")

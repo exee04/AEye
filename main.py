@@ -11,6 +11,7 @@ from core.BrailleDetect import BrailleDetect
 
 # Core Services
 from core.services.google_speech import GoogleSpeechService
+from core.services.speech_command_service import SpeechCommandService
 from core.services.supabase_client import SupabaseService
 from core.services.network_service import NetworkService
 
@@ -82,6 +83,7 @@ async def main():
 
     # Google Cloud services
     GoogleSpeechService(bus, state)
+    SpeechCommandService(bus, state)
     
     asyncio.create_task(thermal_monitor())
 
