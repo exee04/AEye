@@ -79,7 +79,7 @@ async def main():
     # Secondary modes
     ScoreCheckMode(bus)
     WifiMode(bus, state)
-    VolumeMode(bus)
+    #VolumeMode(bus)
 
     # Google Cloud services
     GoogleSpeechService(bus, state)

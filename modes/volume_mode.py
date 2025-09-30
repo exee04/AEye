@@ -2,8 +2,8 @@
 class VolumeMode:
     def __init__(self, bus):
         self.bus = bus
-        bus.subscribe("enter_volume_mode", self.enter)
-        bus.subscribe("exit_volume_mode", self.exit)
+        #bus.subscribe("enter_volume_mode", self.enter)
+        #bus.subscribe("exit_volume_mode", self.exit)
 
     async def enter(self, data):
         print("[VolumeMode] ENTER")

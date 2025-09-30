@@ -23,6 +23,8 @@ class SystemState:
         self.language = "en"   # default language for TTS ("en" / "fil")
         self.network_status = "Unknown"
         
+        self.audio_control_function = "Volume"
+
         self.VOLUME_MAX = 240
         self.VOLUME_MIN = 0
         self.volume = 100
@@ -32,6 +34,7 @@ class SystemState:
         self.voiceSpeed = 150
 
         self.needQR = False
+
 
     def switch_mode(self, new_mode: str):
         print(f"[SystemState] Mode change: {self.current_mode} → {new_mode}")
@@ -56,6 +59,10 @@ class SystemState:
         self.language = "fil" if self.language == "en" else "en"
         print(f"[SystemState] Language switched → {self.language}")
 
+    def toggle_audio_functions(self):
+        self.audio_control_function = "Volume" if self.audio_control_function == "Voice" else "Voice"
+        print(f"[SystemState] Audio Functions switched → {self.audio_control_function}")
+
     def volumeUp(self):
         if self.volume < self.VOLUME_MAX:            
             self.volume = self.volume + 20
@@ -75,17 +82,30 @@ class SystemState:
 
 
     def voiceSpeedIncrease(self):
-        if self.voiceSpeed <= 280:
-            self.voicespeed = self.voiceSpeed + 10
-            print("[SystemState] Increasing Voice Speed to" + str(self.voiceSpeed))
+        if self.voiceSpeed < self.VOICE_SPEED_MAX:
+            self.voiceSpeed = self.voiceSpeed + 20
+            print(f"[SystemState] Increasing Voice Speed to " + str(self.voiceSpeed))
         else:
             self.voiceSpeed = self.VOICE_SPEED_MAX
-            print("[SystemState] Voice Speed cannot exceed above " + str(self.VOICE_SPEED_MAX))
+            print(f"[SystemState] Voice Speed cannot exceed above " + str(self.VOICE_SPEED_MAX))
         
     def voiceSpeedDecrease(self):
-        if self.voiceSpeed >= 100:
-            self.voiceSpeed = self.voiceSpeed - 10
-            print("[SystemState] Decreasing Voice Speed to " + str(self.voiceSpeed))
+        if self.voiceSpeed > self.VOICE_SPEED_MIN:
+            self.voiceSpeed = self.voiceSpeed - 20
+            print(f"[SystemState] Decreasing Voice Speed to " + str(self.voiceSpeed))
         else:
             self.voicespeed = self.VOICE_SPEED_MIN
-            print("[SystemState] Voice Speed cannot exceed below " + str(self.VOICE_SPEED_MIN))
+            print(f"[SystemState] Voice Speed cannot exceed below " + str(self.VOICE_SPEED_MIN))
+
+
+    def audioIncreaseFunction(self):
+        if self.audio_control_function == "Voice":
+            self.voiceSpeedIncrease()
+        elif self.audio_control_function == "Volume":
+            self.volumeUp()
+    
+    def audioDecreaseFunction(self):
+        if self.audio_control_function == "Voice":
+            self.voiceSpeedDecrease()
+        elif self.audio_control_function == "Volume":
+            self.volumeDown()

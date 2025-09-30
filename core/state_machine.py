@@ -23,10 +23,10 @@ class StateMachine:
         if pin == 24:
             await self.bus.publish("mic_tap", {"pin": pin})
         if pin == 6:
-            self.state.volumeUp()
+            self.state.audioIncreaseFunction()
         
         if pin == 5:
-            self.state.volumeDown()
+            self.state.audioDecreaseFunction()
 
         if pin == 23:  # toggle primary/secondary
             self.state.toggle_layer()
@@ -49,18 +49,13 @@ class StateMachine:
             if pin == 17:
                 await self.switch_state("wifi")
             elif pin == 27:
-                # Publish a semantic event for secondary button 2
-                await self.bus.publish("secondary_button2_tap", {
-                    "pin": pin,
-                    "mode": self.state.current_mode
-                })
-                await self.switch_state("volume")
-
+                self.state.toggle_audio_functions()
     async def on_button_hold(self, data):
         pin = data.get("pin")
         if pin == 24:
             await self.bus.publish("mic_record_start", {"pin": pin})
-
+        if not self.state.primary:
+            self.state.toggle_language()
     async def on_button_release(self, data):
         pin = data.get("pin")
         duration = data.get("duration")
