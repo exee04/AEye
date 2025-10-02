@@ -49,7 +49,7 @@ async def main():
     # Core setup
     bus = EventBus()
     state = SystemState()
-    sm = StateMachine(bus, state)
+    StateMachine(bus, state)
     supabase = SupabaseService()
     primary_key = "f8104e7f-48f1-4d69-9399-bed622724daa"
     username = "tony"
@@ -74,8 +74,6 @@ async def main():
     EducationIdleMode(bus)
     EducationLearnMode(bus)
     EducationQuizMode(bus)
-    # Test (learning nvim atm)
-    # Test 2(nvim finally connected, ssh configured)
     # Secondary modes
     ScoreCheckMode(bus)
     WifiMode(bus, state)
