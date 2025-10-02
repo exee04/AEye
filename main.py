@@ -75,7 +75,7 @@ async def main():
     EducationLearnMode(bus)
     EducationQuizMode(bus)
     # Test (learning nvim atm)
-
+    # Test 2(nvim finally connected, ssh configured)
     # Secondary modes
     ScoreCheckMode(bus)
     WifiMode(bus, state)
