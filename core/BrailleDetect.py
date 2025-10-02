@@ -1,11 +1,12 @@
 # core/BrailleDetect.py
 import sys
+import os
 import json
 import time
 import cv2
-import numpy as np
-sys.path.append("/home/ky/Desktop/AEye/core/BrailleCPPModules/build")
-import braille_cpp
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CPP_BUILD_DIR = os.path.join(BASE_DIR, "core", "BrailleCPPModules", "build")
+sys.path.append(CPP_BUILD_DIR)
 
 class BrailleDetect:
     def __init__(self, bus):
