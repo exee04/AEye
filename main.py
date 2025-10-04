@@ -51,13 +51,6 @@ async def main():
     state = SystemState()
     StateMachine(bus, state)
     supabase = SupabaseService()
-    primary_key = "f8104e7f-48f1-4d69-9399-bed622724daa"
-    username = "tony"
-    if supabase.check_login("users", primary_key, username):
-        print("✅ Linked successfully, continue to detection...")
-    else:
-        print("❌ Login failed, please register device.")
-
     NetworkService(bus, state)
     WifiService(bus,state)
     QRService(bus, state)

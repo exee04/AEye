@@ -21,7 +21,6 @@ class BrailleDetect:
         
         # Load braille letter mapping
         self.braille_letters = self.load_braille_letters()
-        
         # Subscribe to events
         bus.subscribe("start_detect", self.enter)
         bus.subscribe("stop_detect", self.exit)
@@ -31,7 +30,6 @@ class BrailleDetect:
         self.bus.subscribe("enter_education_learn_mode", self.on_learn_enter)
         self.bus.subscribe("enter_education_quiz_mode", self.on_quiz_enter)
         self.bus.subscribe("enter_education_idle_mode", self.on_idle_enter)
-        
     def load_braille_letters(self):
         """Load braille letter mapping from JSON file"""
         try:
