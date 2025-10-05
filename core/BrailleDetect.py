@@ -4,9 +4,28 @@ import os
 import json
 import time
 import cv2
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CPP_BUILD_DIR = os.path.join(BASE_DIR, "core", "BrailleCPPModules", "build")
-sys.path.append(CPP_BUILD_DIR)
+# Dynamic path resolution - removed hardcoded paths for security
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+CPP_MODULES_DIR = os.path.join(CURRENT_DIR, "BrailleCPPModules", "build")
+
+# Legacy C++ module import (deprecated - use new braille_detector module instead)
+try:
+    sys.path.append(CPP_MODULES_DIR)
+    import braille_cpp
+    print("[BrailleDetect] Legacy C++ module loaded (deprecated)")
+except ImportError:
+    # Create mock braille_cpp for compatibility with old code
+    class MockBrailleCpp:
+        @staticmethod
+        def detect_braille(frame):
+            return []
+        
+        @staticmethod
+        def detect_fingers(frame):
+            return []
+    
+    braille_cpp = MockBrailleCpp()
+    print("[BrailleDetect] Legacy C++ module not found, using mock implementation")
 
 class BrailleDetect:
     def __init__(self, bus):
@@ -33,10 +52,11 @@ class BrailleDetect:
     def load_braille_letters(self):
         """Load braille letter mapping from JSON file"""
         try:
-            with open("/home/ky/Desktop/AEye/core/BrailleLetters.json", "r") as f:
+            json_path = os.path.join(CURRENT_DIR, "BrailleLetters.json")
+            with open(json_path, "r") as f:
                 return json.load(f)
-        except FileNotFoundError:
-            print("[BrailleDetect] BrailleLetters.json not found, using default mapping")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"[BrailleDetect] Load error: {e}, using default mapping")
             return {
                 "100000": "A", "110000": "B", "100100": "C", "100110": "D",
                 "100010": "E", "110100": "F", "110110": "G", "110010": "H",

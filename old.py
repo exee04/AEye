@@ -399,7 +399,7 @@ def EducMode():
 				[0, 0, 1]
 			], dtype=np.float32)
 			
-			dist_coeffs = np.zeros(5, dtype=np.float32)
+		dist_coeffs = np.zeros(5, dtype=np.float32)
 
 			# Define the coordinate axes points
 			axis_length = 0.1  # Length of the axes in meters
