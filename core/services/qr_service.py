@@ -11,6 +11,11 @@ class QRService:
 
         # Listen for frames from camera
         self.bus.subscribe("frame_ready", self.on_frame)
+        self.start()
+            
+    def start(self):
+        print("[QRService] Checking for connection...")
+        
 
     async def on_frame(self, data):
         if self.state.needQR == False:

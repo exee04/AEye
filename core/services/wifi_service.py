@@ -35,7 +35,7 @@ class WifiService:
     async def on_disconnect(self, data=None):
         print("[WifiService] Disconnecting Wi-Fi")
         try:
-            subprocess.run(["nmcli", "device", "disconnect", "wlan0"], check=True)
+            subprocess.run(["sudo", "nmcli", "device", "disconnect", "wlan0"], check=True)
             await self.bus.publish("wifi_disconnected", {})
         except subprocess.CalledProcessError as e:
             print(f"[WifiService] Disconnect failed: {e}")

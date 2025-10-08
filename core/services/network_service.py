@@ -11,6 +11,13 @@ class NetworkService:
 
         # Periodically check network status
         asyncio.create_task(self._monitor_network())
+        self.onStart()
+
+    def onStart(self):
+        print("[NetworkService] Checking for connection...")
+        initial_conntection_status = self._get_network_status()
+        self.state.network_status = initial_conntection_status
+        print(str(self.state.network_status))
 
     async def _monitor_network(self):
         while True:
@@ -27,6 +34,9 @@ class NetworkService:
             # Quick check if internet is reachable
             socket.create_connection(("8.8.8.8", 53), timeout=2)
             connected = True
+            self.state.hasConnection = connected
+            print("[NetworkService] Updating State (hasConnection:="+str(connected)+
+                  ")")
         except OSError:
             return "Offline"
 

@@ -49,17 +49,18 @@ async def main():
     bus = EventBus()
     state = SystemState()
     StateMachine(bus, state)
-    supabase = SupabaseService()
-    NetworkService(bus, state)
-    WifiService(bus,state)
-    QRService(bus, state)
-    BrailleDetect(bus, True)
 
+    # Check for Connection
+    NetworkService(bus, state)
+    # Open QR
+    QRService(bus, state)
+    WifiService(bus, state)
+    BrailleDetect(bus, True)
     # HALs
-    camera = CameraHAL(bus, state, show_preview=True)
+    camera = CameraHAL(bus, state, show_preview=False)
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
-    SpeechHAL(bus)  # Simplified, add i18n later
+    #SpeechHAL(bus)  # Simplified, add i18n later
     # Modes
     # Education: parent + sub-modes
     EducationMode(bus)
@@ -70,10 +71,11 @@ async def main():
     ScoreCheckMode(bus)
     WifiMode(bus, state)
     #VolumeMode(bus)
-
+    
+    SupabaseService()
     # Google Cloud services
-    GoogleSpeechService(bus, state)
-    SpeechCommandService(bus, state)
+    #GoogleSpeechService(bus, state)
+    #SpeechCommandService(bus, state)
     
     asyncio.create_task(thermal_monitor())
 

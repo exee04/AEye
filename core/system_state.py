@@ -11,6 +11,7 @@ class SystemState:
 
     # Use MockFactory when testing off Pi
     if not is_raspberry_pi():
+        from gpiozero import Device
         from gpiozero.pins.mock import MockFactory
         Device.pin_factory = MockFactory()
         print("[ButtonHAL] Using MockFactory (not on Raspberry Pi)")
@@ -22,7 +23,7 @@ class SystemState:
         self.education_submode = "idle"
         self.language = "en"   # default language for TTS ("en" / "fil")
         self.network_status = "Unknown"
-        
+        self.hasConnection = False
         self.audio_control_function = "Volume"
 
         self.VOLUME_MAX = 240

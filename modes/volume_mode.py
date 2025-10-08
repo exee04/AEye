@@ -7,7 +7,6 @@ class VolumeMode:
 
     async def enter(self, data):
         print("[VolumeMode] ENTER")
-        await self.bus.publish("tts", {"text": "Volume Mode activated"})
 
     async def exit(self, data):
         print("[VolumeMode] EXIT")
