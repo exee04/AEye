@@ -24,6 +24,8 @@ class SystemState:
         self.language = "en"   # default language for TTS ("en" / "fil")
         self.network_status = "Unknown"
         self.hasConnection = False
+        self.currentUser = "None"
+        self.isLoggedIn = False
         self.audio_control_function = "Volume"
 
         self.VOLUME_MAX = 240
@@ -33,14 +35,13 @@ class SystemState:
         self.VOICE_SPEED_MAX = 280
         self.VOICE_SPEED_MIN = 100
         self.voiceSpeed = 150
-
         self.needQR = False
-
+        self.needWifi = False
+        self.needAccount = False
 
     def switch_mode(self, new_mode: str):
         print(f"[SystemState] Mode change: {self.current_mode} → {new_mode}")
         self.current_mode = new_mode
-
 
     def toggle_layer(self):
         self.primary = not self.primary

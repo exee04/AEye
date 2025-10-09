@@ -19,7 +19,7 @@ class WifiService:
         print(f"[WifiService] Connecting to SSID={ssid}, TYPE={auth_type}")
 
         try:
-            # Example with nmcli (Linux Network Manager)
+            # Example with nmcli (Linux Nettwork Manager)
             cmd = ["nmcli", "device", "wifi", "connect", ssid]
             if password:
                 cmd += ["password", password]

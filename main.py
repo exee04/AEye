@@ -60,7 +60,7 @@ async def main():
     camera = CameraHAL(bus, state, show_preview=False)
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
-    #SpeechHAL(bus)  # Simplified, add i18n later
+    # SpeechHAL(bus)  # Simplified, add i18n later
     # Modes
     # Education: parent + sub-modes
     EducationMode(bus)
@@ -70,13 +70,11 @@ async def main():
     # Secondary modes
     ScoreCheckMode(bus)
     WifiMode(bus, state)
-    #VolumeMode(bus)
-    
+    # VolumeMode(bus)
     SupabaseService()
     # Google Cloud services
-    #GoogleSpeechService(bus, state)
-    #SpeechCommandService(bus, state)
-    
+    # GoogleSpeechService(bus, state)
+    # SpeechCommandService(bus, state)
     asyncio.create_task(thermal_monitor())
 
     print("[Main] System initialized. Press buttons to test navigation.")
