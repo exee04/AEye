@@ -64,7 +64,7 @@ async def main():
     print("[Main] Initializing HALs...")
     button_hal = ButtonHAL(bus, asyncio.get_event_loop())
     audio_hal = AudioHAL(bus, state)
-    camera = CameraHAL(bus, state, show_preview=False)
+    camera = CameraHAL(bus, state, show_preview=True)
     # SpeechHAL(bus)  # Optional, if needed later
 
     # --- Stage 2: Base Services (Wi-Fi / QR / Network) ---
@@ -103,7 +103,6 @@ async def main():
     EducationQuizMode(bus)
     ScoreCheckMode(bus)
     WifiMode(bus, state)
-    VolumeMode(bus)
 
     # --- Stage 6: Misc background tasks ---
     asyncio.create_task(thermal_monitor())
@@ -119,4 +118,3 @@ async def main():
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
     asyncio.run(main())
-

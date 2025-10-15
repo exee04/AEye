@@ -71,8 +71,6 @@ class CameraHAL:
         # =============================
         # Debug overlays
         # =============================
-    
-        
 
         mode_text = f"Mode: {self.state.current_mode}"
         layer_text = "Layer: Primary" if self.state.primary else "Layer: Secondary"
