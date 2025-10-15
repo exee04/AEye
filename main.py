@@ -1,5 +1,7 @@
 import asyncio
 
+from core.event_bus import EventBus
+
 async def thermal_monitor(self):
     """Print CPU temperature every few seconds (Raspberry Pi only)."""
     while True:
@@ -15,5 +17,6 @@ async def thermal_monitor(self):
 async def main():
     state = "[Main]"
     print(f"{state} Booting system...")
+    bus = EventBus()
 if __name__ == "__main__":
     asyncio.run(main())

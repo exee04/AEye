@@ -30,9 +30,19 @@ class EventBus:
         for cb in listeners:
             if event_type not in self._silent_events:
                 print(f"[EventBus] Sending '{event_type}' to {cb.__name__}")
+            sig = inspect.signature(cb)
+            param_count = len(sig.parameters)
 
+            # async callback
             if inspect.iscoroutinefunction(cb):
-                asyncio.create_task(cb(data))  # schedule coroutine
+                if param_count == 0:
+                    asyncio.create_task(cb())
+                else:
+                    asyncio.create_task(cb(data))
+            # sync callback
             else:
                 loop = asyncio.get_running_loop()
-                loop.run_in_executor(None, cb, data)
+                if param_count == 0:
+                    loop.run_in_executor(None, cb)
+                else:
+                    loop.run_in_executor(None, cb, data)
