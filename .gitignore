@@ -2,5 +2,5 @@ venv/
 test/
 config/
 cache/*
-
+*.pyc
 !cache/.gitkeep
