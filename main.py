@@ -62,49 +62,10 @@ async def main():
 
     # --- Stage 1: Hardware Abstraction Layer ---
     print("[Main] Initializing HALs...")
-    button_hal = ButtonHAL(bus, asyncio.get_event_loop())
-    audio_hal = AudioHAL(bus, state)
-    camera = CameraHAL(bus, state, show_preview=True)
-    # SpeechHAL(bus)  # Optional, if needed later
-
-    # --- Stage 2: Base Services (Wi-Fi / QR / Network) ---
-    print("[Main] Initializing core services...")
-    network = NetworkService(bus, state)
-    wifi = WifiService(bus, state)
-    qr = QRService(bus, state)
-    supabase = SupabaseService()
-    account = AccountService(bus, state, supabase)
-
-    # --- Stage 3: Startup Orchestrator ---
-    print("[Main] Starting StartupService...")
-    startup = StartupService(bus, state)
-    asyncio.create_task(startup.start())  # Handles online/offline initialization
-
-    # --- Stage 4: Cloud-dependent services ---
-    # Initialize only when Wi-Fi + login are active
-    async def wait_for_cloud_services():
-        while True:
-            if state.hasConnection and state.isLoggedIn:
-                print("[Main] Starting cloud-dependent services...")
-                GoogleSpeechService(bus, state)
-                SpeechCommandService(bus, state)
-                break
-            await asyncio.sleep(1)
-
-    asyncio.create_task(wait_for_cloud_services())
-
-    # --- Stage 5: Functional Modes (run in both online & offline) ---
-    print("[Main] Loading functional modes...")
-    BrailleDetect(bus, True)
-
-    EducationMode(bus)
-    EducationIdleMode(bus)
-    EducationLearnMode(bus)
-    EducationQuizMode(bus)
-    ScoreCheckMode(bus)
-    WifiMode(bus, state)
-
-    # --- Stage 6: Misc background tasks ---
+    ButtonHAL(bus, asyncio.get_event_loop())
+    AudioHAL(bus, state)
+    camera = CameraHAL(bus, state, show_preview=False)
+    #SpeechHAL(bus)  # Optional, if needed later
     asyncio.create_task(thermal_monitor())
 
     print("[Main] System initialized — awaiting startup flow...")
