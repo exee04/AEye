@@ -29,7 +29,6 @@ from modes.education.education_quiz_mode import EducationQuizMode
 # Modes - Others
 from modes.scorecheck_mode import ScoreCheckMode
 from modes.wifi_mode import WifiMode
-from modes.volume_mode import VolumeMode
 
 async def thermal_monitor():
     """Print CPU temperature every 10 seconds (Raspberry Pi only)."""
@@ -59,8 +58,7 @@ async def main():
     camera = CameraHAL(bus, state, show_preview=True)
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
-    SpeechHAL(bus)  # Simplified, add i18n later
-    # Modes
+    SpeechHAL(bus)
     # Education: parent + sub-modes
     EducationMode(bus)
     EducationIdleMode(bus)
@@ -69,7 +67,6 @@ async def main():
     # Secondary modes
     ScoreCheckMode(bus)
     WifiMode(bus, state)
-    #VolumeMode(bus)
 
     # Google Cloud services
     GoogleSpeechService(bus, state)

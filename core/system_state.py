@@ -1,21 +1,5 @@
 # core/system_state.py
 class SystemState:
-
-    # Detect if running on Pi
-    def is_raspberry_pi():
-        try:
-            with open("/proc/cpuinfo", "r") as f:
-                return "Raspberry Pi" in f.read()
-        except FileNotFoundError:
-            return False
-
-    # Use MockFactory when testing off Pi
-    if not is_raspberry_pi():
-        from gpiozero.pins.mock import MockFactory
-        Device.pin_factory = MockFactory()
-        print("[ButtonHAL] Using MockFactory (not on Raspberry Pi)")
-        import keyboard  # pip install keyboard
-    
     def __init__(self):
         self.current_mode = "idle"
         self.primary = True
