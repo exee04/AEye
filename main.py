@@ -1,7 +1,11 @@
 import asyncio
 
 from core.event_bus import EventBus
+from core.system_state import SystemState
 
+from hal.hal_buttons import ButtonHAL
+from hal.hal_audio import AudioHAL
+from hal.hal_camera import CameraHAL
 async def thermal_monitor(self):
     """Print CPU temperature every few seconds (Raspberry Pi only)."""
     while True:
@@ -15,8 +19,15 @@ async def thermal_monitor(self):
         await asyncio.sleep(3)
 
 async def main():
-    state = "[Main]"
-    print(f"{state} Booting system...")
+    print("Initializing system...")
     bus = EventBus()
+    state = SystemState()
+    ButtonHAL(bus, asyncio.get_event_loop())
+    AudioHAL(bus, state)
+    CameraHAL(bus, state, True)
+
+    while True:
+        await asyncio.sleep(0.01)
+
 if __name__ == "__main__":
     asyncio.run(main())

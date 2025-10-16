@@ -2,4 +2,5 @@ venv/
 .venv/
 cache/
 config/
-
+*.pyc
+__pycache__/*
