@@ -18,16 +18,17 @@ async def thermal_monitor(self):
             pass
         await asyncio.sleep(3)
 
-async def main():
+
+async def main(bus, state):
     print("Initializing system...")
-    bus = EventBus()
-    state = SystemState()
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
-    CameraHAL(bus, state, True)
-
+    camera = CameraHAL(bus, state, True)
     while True:
+        camera.update()
         await asyncio.sleep(0.01)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    bus = EventBus()
+    state = SystemState()
+    asyncio.run(main(bus, state))

@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 
+
 class EventBus:
     def __init__(self):
         self._listeners = {}
