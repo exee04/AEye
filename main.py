@@ -24,11 +24,13 @@ async def main(bus, state):
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
     camera = CameraHAL(bus, state, True)
+    # QR_MANAGER HERE
+    asyncio.create_task(state.OnStartup())
     while True:
         camera.update()
         await asyncio.sleep(0.01)
 
 if __name__ == "__main__":
     bus = EventBus()
-    state = SystemState()
+    state = SystemState(bus)
     asyncio.run(main(bus, state))

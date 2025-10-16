@@ -6,7 +6,7 @@ class EventBus:
     def __init__(self):
         self._listeners = {}
         # Events that should not spam the console
-        self._silent_events = {"frame_ready", "button_press", "button_hold"}
+        self._silent_events = {"frame_ready", "button_press", "button_hold", "tts"}
         print("[EventBus] Initialized")
 
     def subscribe(self, event_type, callback):
