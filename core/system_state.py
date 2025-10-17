@@ -5,6 +5,7 @@ class SystemState:
     def __init__(self, bus):
         self.bus = bus
         self.skipped_startup = False
+        self.needQR = False
         self.hasConnection = False
         self.network_name = "Unknown"
 
@@ -26,8 +27,10 @@ class SystemState:
         if pin != 24:
             return
         self.skipped_startup = True
+        self.needQR = False
 
     async def OnStartup(self):
+        self.needQR = True
         last_prompt = None
         reminder_timer = 0
         elapsed_time = 0
@@ -39,12 +42,16 @@ class SystemState:
             if self.skipped_startup:
                 await self.bus.publish("tts", {"text": "Starting in offline mode."})
                 self.current_network_state = "OFFLINE_MODE"
+                self.needQR = False
+                self.current_system_mode = "Idle"
                 return
 
             # --- Timeout to offline mode ---
             if elapsed_time >= timeout_seconds:
                 await self.bus.publish("tts", {"text": "No QR found. Starting in offline mode."})
                 self.current_network_state = "OFFLINE_MODE"
+                self.needQR = False
+                self.current_system_mode = "Idle"
                 return
 
             # --- Wi-Fi Scan Phase ---
@@ -62,7 +69,7 @@ class SystemState:
                 continue
 
             # --- Account Scan Phase ---
-            if not self.hasAccount:
+            if self.hasConnection and not self.hasAccount:
                 if last_prompt != "account":
                     await self.bus.publish("tts", {"text": "Scan Account QR"})
                     last_prompt = "account"
@@ -82,6 +89,17 @@ class SystemState:
             self.current_network_state = "ONLINE_NO_ACCOUNT"
         else:
             self.current_network_state = "OFFLINE_MODE"
-
+        self.current_system_mode = "Idle"
         await self.bus.publish("tts", {"text": "Setup complete."})
 
+    async def thermal_monitor(self):
+        """Print CPU temperature every few seconds (Raspberry Pi only)."""
+        while True:
+            try:
+                with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                    temp_str = f.readline().strip()
+                temp = float(temp_str) / 1000.0
+                print(f"[ThermalMonitor] CPU Temperature: {temp:.1f} °C")
+            except FileNotFoundError:
+                pass
+            await asyncio.sleep(3)

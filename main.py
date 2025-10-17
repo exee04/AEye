@@ -2,21 +2,12 @@ import asyncio
 
 from core.event_bus import EventBus
 from core.system_state import SystemState
+from core.qr_handler import QRHandler
+from core.navigation_handler import NavigationHandler
 
 from hal.hal_buttons import ButtonHAL
 from hal.hal_audio import AudioHAL
 from hal.hal_camera import CameraHAL
-async def thermal_monitor(self):
-    """Print CPU temperature every few seconds (Raspberry Pi only)."""
-    while True:
-        try:
-            with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
-                temp_str = f.readline().strip()
-            temp = float(temp_str) / 1000.0
-            print(f"[ThermalMonitor] CPU Temperature: {temp:.1f} °C")
-        except FileNotFoundError:
-            pass
-        await asyncio.sleep(3)
 
 
 async def main(bus, state):
@@ -24,8 +15,11 @@ async def main(bus, state):
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
     camera = CameraHAL(bus, state, True)
-    # QR_MANAGER HERE
+    QRHandler(bus, state)
     asyncio.create_task(state.OnStartup())
+    NavigationHandler(bus, state)
+    
+
     while True:
         camera.update()
         await asyncio.sleep(0.01)
