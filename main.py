@@ -14,12 +14,11 @@ async def main(bus, state):
     print("Initializing system...")
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
-    camera = CameraHAL(bus, state, True)
+    camera = CameraHAL(bus, state, show_preview=True)
     QRHandler(bus, state)
     asyncio.create_task(state.OnStartup())
+    asyncio.create_task(state.thermal_monitor())
     NavigationHandler(bus, state)
-    
-
     while True:
         camera.update()
         await asyncio.sleep(0.01)
