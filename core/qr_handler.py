@@ -17,14 +17,15 @@ class QRHandler:
             return
 
         text, points, _ = self.detector.detectAndDecode(frame)
-        if not text:
-            return
+        # if not text:
+        #    return
 
-        if text == self._last_handled:
-            return
+        # if text == self._last_handled:
+        #    return
 
         if not self.state.hasConnection:
-            print("Running wifi connect func")
+            if text.startswith("WIFI:"):
+                await self.bus.publish("wifi_connect", {"raw": text})
             return
 
         if self.state.hasConnection and not self.state.hasAccount:
