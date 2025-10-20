@@ -4,7 +4,7 @@ from core.event_bus import EventBus
 from core.system_state import SystemState
 from core.qr_handler import QRHandler
 from core.navigation_handler import NavigationHandler
-
+from core.network_handler import NetworkHandler
 from hal.hal_buttons import ButtonHAL
 from hal.hal_audio import AudioHAL
 from hal.hal_camera import CameraHAL
@@ -15,7 +15,7 @@ async def main(bus, state):
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
     camera = CameraHAL(bus, state, show_preview=False)
-
+    NetworkHandler(bus, state)
     QRHandler(bus, state)
     asyncio.create_task(state.OnStartup())
     asyncio.create_task(state.thermal_monitor())

@@ -7,8 +7,8 @@ class SystemState:
         self.skipped_startup = False
         self.needQR = False
         self.hasConnection = False
-        self.network_name = "Unknown"
-
+        self.network_status = "Unknown"
+        
         self.hasAccount = False
         self.account_name = "Unknown"
 

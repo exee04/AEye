@@ -2,34 +2,52 @@ class NavigationHandler:
     def __init__(self, bus, state):
         self.bus = bus
         self.state = state
-        self.bus.subscribe("button_press", self.tapNavigation)
+        self.bus.subscribe("button_press", self.tapFunctions)
+        self.bus.subscribe("button_hold", self.holdFunctions)
         self.newMode = None
-    def tapNavigation(self, data):
+    def tapFunctions(self, data):
         if self.state.current_system_mode == "Initialization":
             return
         pin = data.get("pin")
         if pin == 17:
-            self.state.current_system_mode = "Educ"
-            print(self.state.current_system_mode)
             self.educationMode()
         if pin == 27:
-            self.scoreCheckMode()
+            self.AccountMode()
         if pin == 22:
-            self.networkMode()
+            self.NetworkMode()
         if pin == 23:
             self.state.current_system_mode = "Idle"
+
+    def holdFunctions(self, data):
+        if self.state.current_system_mode == "Initialization":
+            return
+        pin = data.get("pin")
+        if pin == 17:
+            print("Discard Current Braille Paper")
+        if pin == 27:
+            print("Log out account")
+        if pin == 22:
+            print("Disconnect current wifi")
+        if pin == 23:
+            print("Shutdown")
+        if pin == 6:
+            print("Swap between volume and voice speed")
+        if pin == 5:
+            print("Swap between english and filipino")
 
     def educationMode(self):
         self.newMode = "EducationMode"
         self.changeMode()
 
-    def scoreCheckMode():
-        return
+    def AccountMode(self):
+        self.newMode = "AccountMode"
+        self.changeMode()
 
-    def networkMode():
-        return
+    def NetworkMode(self):
+        self.newMode = "NetworkMode"
+        self.changeMode()
 
-    async def changeMode(self):
-        if self.current_system_modenewMode != self.state.current_system_mode:
-            self.current_system_mode = self.newMode
+    def changeMode(self):
+        if self.newMode != self.state.current_system_mode:
             print(f"[NavigationHandler] From [{self.state.current_system_mode}] to [{self.newMode}]")
+            self.state.current_system_mode = self.newMode

@@ -1,4 +1,6 @@
 import subprocess
+import asyncio
+import socket
 
 
 class NetworkHandler:
@@ -8,8 +10,7 @@ class NetworkHandler:
         print("[NetworkHandler] Initialized")
         # Subscribe to wifi connect/disconnect requests
         bus.subscribe("wifi_connect", self.on_connect)
-        bus.subscribe("wifi_disconnect", self.on_disconnect)
-        bus.subscribe("wifi_status", self.on_status)
+        asyncio.create_task(self._monitor_network())
 
     async def on_connect(self, data):
         ssid = data.get("ssid")
@@ -31,29 +32,41 @@ class NetworkHandler:
             print(f"[WifiService] Connection failed: {e}")
             await self.bus.publish("wifi_failed", {"ssid": ssid, "error": str(e)})
 
-    async def on_disconnect(self, data=None):
-        print("[WifiService] Disconnecting Wi-Fi")
-        try:
-            subprocess.run(["sudo", "nmcli", "device", "disconnect", "wlan0"], check=True)
-            await self.bus.publish("wifi_disconnected", {})
-        except subprocess.CalledProcessError as e:
-            print(f"[WifiService] Disconnect failed: {e}")
+    async def _monitor_network(self):
+        while True:
+            status = self._get_network_status()
+            if status != self.state.network_status:
+                print(f"[NetworkService] Network status changed → {status}")
+                self.state.network_status = status
+                await self.bus.publish("network_status", {"status": status})
+            await asyncio.sleep(10)  # check every 10 seconds
 
-    async def on_status(self, data=None):
-        """Check current connection status"""
+    def _get_network_status(self):
+        """Check if online, and whether via Ethernet or Wi-Fi"""
         try:
-            result = subprocess.run(
-                ["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"],
-                capture_output=True, text=True, check=True
-            )
-            active_lines = [
-                line for line in result.stdout.splitlines()
-                if line.startswith("yes:")
-            ]
-            if active_lines:
-                ssid = active_lines[0].split(":")[1]
-                await self.bus.publish("wifi_status_result", {"connected": True, "ssid": ssid})
-            else:
-                await self.bus.publish("wifi_status_result", {"connected": False})
-        except Exception as e:
-            await self.bus.publish("wifi_status_result", {"connected": False, "error": str(e)})
+            # Quick check if internet is reachable
+            socket.create_connection(("8.8.8.8", 53), timeout=2)
+            self.state.hasConnection = True
+        except OSError:
+            return "Offline"
+
+        # Check interface
+        try:
+            result = subprocess.check_output(
+                "iwgetid -r", shell=True, text=True
+            ).strip()
+            if result:
+                return f"Wi-Fi ({result})"
+        except subprocess.CalledProcessError:
+            pass
+
+        # Check Ethernet
+        try:
+            eth_status = subprocess.check_output(
+                "cat /sys/class/net/eth0/operstate", shell=True, text=True
+            ).strip()
+            if eth_status == "up":
+                return "Ethernet"
+        except Exception:
+            pass
+        return "Online (Unknown)"
