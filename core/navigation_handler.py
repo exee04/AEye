@@ -4,17 +4,17 @@ class NavigationHandler:
         self.state = state
         self.bus.subscribe("button_press", self.tapFunctions)
         self.bus.subscribe("button_hold", self.holdFunctions)
-        self.newMode = None
-    def tapFunctions(self, data):
+
+    async def tapFunctions(self, data):
         if self.state.current_system_mode == "Initialization":
             return
         pin = data.get("pin")
         if pin == 17:
-            self.educationMode()
+            await self.changeMode("EducationMode")
         if pin == 27:
-            self.AccountMode()
+            await self.changeMode("AccountMode")
         if pin == 22:
-            self.NetworkMode()
+            await self.changeMode("NetworkMode")
         if pin == 23:
             self.state.current_system_mode = "Idle"
 
@@ -35,19 +35,11 @@ class NavigationHandler:
         if pin == 5:
             print("Swap between english and filipino")
 
-    def educationMode(self):
-        self.newMode = "EducationMode"
-        self.changeMode()
-
-    def AccountMode(self):
-        self.newMode = "AccountMode"
-        self.changeMode()
-
-    def NetworkMode(self):
-        self.newMode = "NetworkMode"
-        self.changeMode()
-
-    def changeMode(self):
-        if self.newMode != self.state.current_system_mode:
-            print(f"[NavigationHandler] From [{self.state.current_system_mode}] to [{self.newMode}]")
-            self.state.current_system_mode = self.newMode
+    async def changeMode(self, newMode):
+        if newMode != self.state.current_system_mode:
+            print(f"[NavigationHandler] From [{self.state.current_system_mode}] to [{newMode}]")
+            await self.bus.publish(f"exit_{self.state.current_system_mode}")
+            self.state.current_system_mode = newMode
+            await self.bus.publish(f"enter_{self.state.current_system_mode}")
+        else:
+            print(f"[NavigationHandler] Already in {self.state.current_system_mode}")

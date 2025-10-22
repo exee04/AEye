@@ -63,20 +63,33 @@ class SystemState:
 
         return "SUCCESS"
 
-    async def _start_offline_mode(self, reason):
-        """Enter offline mode after skip or timeout."""
-        msg = (
-            "Starting in offline mode."
-            if reason == "SKIPPED"
-            else "No QR found. Starting in offline mode."
-        )
+    async def _start_fallback_mode(self, reason, wifi_connected=False):
+        """
+        Handle transition into offline or partial-online mode.
+        - If Wi-Fi was connected but account was skipped/timed out → PARTIAL_ONLINE
+        - If no Wi-Fi connection → OFFLINE_MODE
+        """
+        if wifi_connected:
+            msg = (
+                "Account setup skipped. Starting in partial online mode."
+                if reason == "SKIPPED"
+                else "No account QR found. Starting in partial online mode."
+            )
+            self.current_network_state = "PARTIAL_ONLINE"
+        else:
+            msg = (
+                "Starting in offline mode."
+                if reason == "SKIPPED"
+                else "No QR found. Starting in offline mode."
+            )
+            self.current_network_state = "OFFLINE_MODE"
+
         await self.bus.publish("tts", {"text": msg})
-        self.current_network_state = "OFFLINE_MODE"
         self.needQR = False
         self.current_system_mode = "Idle"
 
     async def OnStartup(self):
-        """Handles startup logic with timeout, reminders, and offline fallback."""
+        """Handles startup logic with timeout, reminders, and fallback modes."""
         self.needQR = True
         self.current_system_mode = "Initialization"
 
@@ -86,8 +99,10 @@ class SystemState:
             check_condition=lambda: self.hasConnection,
             reminder_text="Still scanning for Wi-Fi.",
         )
+
         if wifi_result != "SUCCESS":
-            return await self._start_offline_mode(wifi_result)
+            # No Wi-Fi → Fully offline
+            return await self._start_fallback_mode(wifi_result, wifi_connected=False)
 
         # --- Phase 2: Account ---
         account_result = await self._scan_phase(
@@ -95,8 +110,10 @@ class SystemState:
             check_condition=lambda: self.hasAccount,
             reminder_text="Still waiting for account QR.",
         )
+
         if account_result != "SUCCESS":
-            return await self._start_offline_mode(account_result)
+            # Wi-Fi connected but no account → Partial online
+            return await self._start_fallback_mode(account_result, wifi_connected=True)
 
         # --- Online Mode ---
         await self.bus.publish("init_api")

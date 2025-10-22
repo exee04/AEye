@@ -7,9 +7,9 @@ class QRHandler:
         self.state = state
         self.detector = cv2.QRCodeDetector()
         self._last_handled = None
-        self.bus.subscribe("frame_ready", self.on_frame)
+        self.bus.subscribe("frame_ready", self.onFrame)
 
-    async def on_frame(self, data):
+    async def onFrame(self, data):
         if not self.state.needQR:
             return
         frame = data.get("frame")

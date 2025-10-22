@@ -7,6 +7,9 @@ from core.navigation_handler import NavigationHandler
 from core.network_handler import NetworkHandler
 from core.account_handler import AccountHandler
 from core.api_handler import APIHandler
+
+from core.modes.education_mode import EducationMode
+
 from hal.hal_buttons import ButtonHAL
 from hal.hal_audio import AudioHAL
 from hal.hal_camera import CameraHAL
@@ -23,6 +26,9 @@ async def main(bus, state):
     QRHandler(bus, state)
     asyncio.create_task(state.OnStartup())
     asyncio.create_task(state.thermal_monitor())
+
+    # Init Modes
+    EducationMode(bus, state)
     NavigationHandler(bus, state)
     while True:
         camera.update()

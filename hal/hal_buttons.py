@@ -73,13 +73,13 @@ class ButtonHAL:
     def on_press(self, pin):
         """Record timestamp when button is pressed"""
         self.press_times[pin] = time.time()
-        print(f"[ButtonHAL] Button {pin} pressed at {self.press_times[pin]}")
+        # print(f"[ButtonHAL] Button {pin} pressed at {self.press_times[pin]}")
 
     def on_release(self, pin):
         """Handle button release (decide if it was a tap or just release after hold)"""
         pressed_at = self.press_times.get(pin, time.time())
         duration = time.time() - pressed_at
-        print(f"[ButtonHAL] Button {pin} released after {duration:.2f}s")
+        # print(f"[ButtonHAL] Button {pin} released after {duration:.2f}s")
 
         # Always publish release event
         if pin == 24:
@@ -90,7 +90,7 @@ class ButtonHAL:
 
         if self.held_flags.get(pin, False):
             # Was a hold → already handled in on_hold, don’t double fire
-            print(f"[ButtonHAL] Button {pin} released after HOLD (no tap event)")
+            # print(f"[ButtonHAL] Button {pin} released after HOLD (no tap event)")
             self.held_flags[pin] = False
         else:
             # Was a tap
@@ -140,4 +140,3 @@ class ButtonHAL:
                             del held_flags[pin]
 
             time.sleep(0.05)  # 20Hz polling
-
