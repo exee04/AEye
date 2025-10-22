@@ -1,6 +1,10 @@
 venv/
 .venv/
+
 cache/
 config/
+test/
+.env
+*.zsh
 *.pyc
 __pycache__/*

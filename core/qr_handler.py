@@ -29,5 +29,9 @@ class QRHandler:
             return
 
         if self.state.hasConnection and not self.state.hasAccount:
-            print("Scanning for Account")
+            await self.bus.publish("account_connect", {"raw": text})
+            return
+
+        if self.state.hasConnection and self.state.hasAccount:
+            self.state.needQR = False
             return

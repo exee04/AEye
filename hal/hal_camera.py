@@ -52,7 +52,7 @@ class CameraHAL:
                     colour_space=ColorSpace.Sycc(),
                     buffer_count=2,  # reduce load
                 )
-
+                config["controls"]["AfMode"] = 2
                 self.pi_cam.configure(config)
                 self.pi_cam.start()
                 self.using_pi = True
@@ -64,7 +64,8 @@ class CameraHAL:
                         int(1e6 / self.target_fps),
                     ),
                     "ExposureTime": 16000,  # normal exposure
-                    "AnalogueGain": 2.0,    # normal brightness
+                    "AnalogueGain": 2.0,
+                    "AfMode": 2,
                 })
 
                 print(f"[CameraHAL] ✅ Using PiCamera2 (IMX708) {self.resolution} @ {self.target_fps} FPS")
