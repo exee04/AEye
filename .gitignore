@@ -8,3 +8,4 @@ test/
 *.zsh
 *.pyc
 __pycache__/*
+.lgd-nfy0

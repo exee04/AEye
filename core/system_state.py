@@ -78,6 +78,7 @@ class SystemState:
                 else "No account QR found. Starting in partial online mode."
             )
             self.current_network_state = "PARTIAL_ONLINE"
+            await self.bus.publish("init_api")
         else:
             msg = (
                 "Starting in offline mode."

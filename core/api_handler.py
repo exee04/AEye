@@ -28,6 +28,7 @@ class APIHandler:
         print("[APIService] Internet connection restored.")
 
     async def initialize(self):
+        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         if not self.state.hasConnection:
             print("[APIHandler] No Connection, can't initiaize API Serivces")
             return
@@ -45,6 +46,7 @@ class APIHandler:
             print("[APIHandler] ⚠️ Missing GOOGLE_CLOUD_CREDENTIALS.")
             return
         with open(creds_path, "r") as f:
+            print(str(f))
             self.google_client = json.load(f)
         print("[APIHandler] ✅ Google credentials loaded from file.")
 
