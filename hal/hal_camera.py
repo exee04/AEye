@@ -15,12 +15,14 @@ class CameraHAL:
         self,
         bus,
         state,
-        show_preview=False,          # unified preview flag
+        show_preview=False,
         resolution=(2304, 1296),
         target_fps=15,
+        edu_mode=None
     ):
         self.bus = bus
         self.state = state
+        self.edu_mode = edu_mode
         self.show_preview = show_preview
         self.resolution = resolution
         self.target_fps = target_fps
@@ -42,7 +44,6 @@ class CameraHAL:
         if PI_CAMERA_AVAILABLE:
             try:
                 self.pi_cam = Picamera2()
-
                 config = self.pi_cam.create_preview_configuration(
                     main={
                         "size": self.resolution,
@@ -50,7 +51,7 @@ class CameraHAL:
                     },
                     transform=Transform(hflip=0, vflip=0),
                     colour_space=ColorSpace.Sycc(),
-                    buffer_count=2,  # reduce load
+                    buffer_count=2,
                 )
                 config["controls"]["AfMode"] = 2
                 self.pi_cam.configure(config)
@@ -63,18 +64,17 @@ class CameraHAL:
                         int(1e6 / self.target_fps),
                         int(1e6 / self.target_fps),
                     ),
-                    "ExposureTime": 16000,  # normal exposure
-                    "AnalogueGain": 2.0,
+                    "ExposureTime": 40000,
+                    "AnalogueGain": 8.0,
                     "AfMode": 2,
                 })
 
                 print(f"[CameraHAL] ✅ Using PiCamera2 (IMX708) {self.resolution} @ {self.target_fps} FPS")
                 return
-
             except Exception as e:
                 print(f"[CameraHAL] ⚠️ PiCamera2 init failed: {e}. Falling back to cv2 webcam.")
 
-        # fallback webcam
+        # Fallback webcam
         self.cap = cv2.VideoCapture(0)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
@@ -95,6 +95,7 @@ class CameraHAL:
             return frame if ret else None
         return None
 
+    # ------------------------------------------------------------------
     def update(self):
         """Capture + optional preview + publish event."""
         now = time.time()
@@ -107,21 +108,40 @@ class CameraHAL:
             print("❌ Camera frame not available")
             return None, None
 
-        # Preview downscaled for SSH/Wayland (no need for full res)
-        if self.show_preview:
-            preview = cv2.resize(frame, (640, 360), interpolation=cv2.INTER_AREA)
-            cv2.imshow("CameraHAL Preview", preview)
-            if cv2.waitKey(1) & 0xFF == ord('p'):
-                print("[CameraHAL] Quit requested")
-                self.release()
-        else:
-            preview = None
-
+        # Publish frame asynchronously
         asyncio.get_event_loop().create_task(
             self.bus.publish("frame_ready", {"frame": frame})
         )
 
-        # Small rest period to ease CPU/GPU load
+        preview = None
+        if self.show_preview:
+            # Prefer processed EducationMode frame if available
+            if self.edu_mode and getattr(self.edu_mode, "frame", None) is not None:
+                preview = self.edu_mode.frame
+                label = "EducationMode"
+            else:
+                preview = frame
+                # Use system mode from state if available
+                label = getattr(self.state, "current_system_mode", "Live Camera")
+
+            # Overlay label
+            if preview is not None:
+                overlay = preview.copy()
+                cv2.putText(
+                    overlay,
+                    f"Mode: {label}",
+                    (15, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (0, 255, 0),
+
+                    2,
+                    cv2.LINE_AA,
+                )
+                preview_resized = cv2.resize(overlay, (640, 360))
+                cv2.imshow("Camera Preview", preview_resized)
+                cv2.waitKey(1)
+
         time.sleep(0.005)
         return frame, preview
 

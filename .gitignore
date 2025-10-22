@@ -1,6 +1,6 @@
 venv/
 .venv/
-
+core/cache/*
 cache/
 config/
 test/

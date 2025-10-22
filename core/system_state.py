@@ -19,6 +19,8 @@ class SystemState:
         self.current_system_mode = "Initialization"
         self.current_network_state = "Unknown"
 
+        self.hasBraillePaper = False
+
         # Configs
         self.language = "en"
         self.volume = 100

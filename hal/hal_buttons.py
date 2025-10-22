@@ -20,12 +20,14 @@ if not is_raspberry_pi():
     import keyboard  # pip install keyboard
 
 class ButtonHAL:
-    def __init__(self, bus, loop, hold_time=0.5):
+    def __init__(self, bus, loop, hold_time=0.5, debounce_time=0.2):
         self.held_flags = {}
         self.bus = bus
         self.loop = loop
         self.hold_time = hold_time
         self.press_times = {}
+        self.debounce_time = debounce_time
+        self.last_event_time = {}
 
         print("[ButtonHAL] Initializing buttons...")
 
@@ -72,7 +74,13 @@ class ButtonHAL:
 
     def on_press(self, pin):
         """Record timestamp when button is pressed"""
-        self.press_times[pin] = time.time()
+        now = time.time()
+        last_time = self.last_event_time.get(pin, 0)
+        if now - last_time < self.debounce_time:
+            # Ignore bounce
+            return
+        self.last_event_time[pin] = now
+        self.press_times[pin] = now
         # print(f"[ButtonHAL] Button {pin} pressed at {self.press_times[pin]}")
 
     def on_release(self, pin):

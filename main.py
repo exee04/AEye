@@ -19,7 +19,8 @@ async def main(bus, state):
     print("Initializing system...")
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
-    camera = CameraHAL(bus, state, show_preview=True)
+    educMode = EducationMode(bus, state)
+    camera = CameraHAL(bus, state, show_preview=True, edu_mode=educMode)
     NetworkHandler(bus, state)
     APIHandler(bus, state)
     AccountHandler(bus, state)
@@ -28,7 +29,6 @@ async def main(bus, state):
     asyncio.create_task(state.thermal_monitor())
 
     # Init Modes
-    EducationMode(bus, state)
     NavigationHandler(bus, state)
     while True:
         camera.update()
