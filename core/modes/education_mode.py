@@ -5,7 +5,7 @@ import numpy as np
 import asyncio
 
 class EducationMode:
-    TARGET_IDS = {1, 12}
+    TARGET_IDS = {1, 5}
 
     def __init__(self, bus, state):
         self.bus = bus
@@ -37,7 +37,7 @@ class EducationMode:
         if ids is not None:
             ids = ids.flatten()
             for i, marker_id in enumerate(ids):
-                if marker_id in self.TARGET_IDS:
+                if marker_id == 5:
                     cv2.aruco.drawDetectedMarkers(self.debugFrame, [corners[i]], np.array([[ids[i]]]))
                     self.hasVisibleMarker = True
                     print(f"[OK] Found target marker ID: {marker_id}")
