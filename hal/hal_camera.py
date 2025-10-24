@@ -9,6 +9,10 @@ try:
 except ImportError:
     PI_CAMERA_AVAILABLE = False
 
+# [0] Resolution: (1536, 864), FPS: 120.13, Bit depth: 10
+# [1] Resolution: (2304, 1296), FPS: 56.03, Bit depth: 10
+# [2] Resolution: (4608, 2592), FPS: 14.35, Bit depth: 10
+
 
 class CameraHAL:
     def __init__(
@@ -16,7 +20,7 @@ class CameraHAL:
         bus,
         state,
         show_preview=False,
-        resolution=(4608, 2592),
+        resolution=(1536, 864),
         target_fps=15,
         edu_mode=None
     ):
@@ -25,17 +29,16 @@ class CameraHAL:
         self.edu_mode = edu_mode
         self.show_preview = show_preview
         self.resolution = resolution
+        self.state.cam_width, self.state.cam_height = resolution
         self.target_fps = target_fps
         self.min_interval = 1.0 / target_fps
         self.last_frame_time = 0
-
+        
         # Camera handles
         self.cap = None
         self.pi_cam = None
         self.using_pi = False
         self.qr_data = None
-
-        bus.subscribe("qr_detected", self.on_qr_detected)
         self._init_camera()
 
     # ------------------------------------------------------------------
@@ -115,16 +118,23 @@ class CameraHAL:
 
         preview = None
         if self.show_preview:
-            # Prefer processed EducationMode frame if available
-            if self.edu_mode and getattr(self.edu_mode, "frame", None) is not None:
+            # Check current mode
+            current_mode = getattr(self.state, "current_system_mode", "Unknown")
+
+            # Use processed frame if we're in EducationMode and it exists
+            if (
+                current_mode == "EducationMode"
+                and self.edu_mode
+                and getattr(self.edu_mode, "frame", None) is not None
+            ):
                 preview = self.edu_mode.frame
                 label = "EducationMode"
             else:
+                # Always fallback to the live camera feed for all other modes
                 preview = frame
-                # Use system mode from state if available
-                label = getattr(self.state, "current_system_mode", "Live Camera")
+                label = current_mode
 
-            # Overlay label
+            # Draw overlay
             if preview is not None:
                 overlay = preview.copy()
                 cv2.putText(
@@ -134,7 +144,6 @@ class CameraHAL:
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1.0,
                     (0, 255, 0),
-
                     2,
                     cv2.LINE_AA,
                 )
@@ -154,7 +163,3 @@ class CameraHAL:
             self.cap.release()
         cv2.destroyAllWindows()
         print("[CameraHAL] 📴 Camera released")
-
-    # ------------------------------------------------------------------
-    async def on_qr_detected(self, data):
-        self.qr_data = data.get("raw")

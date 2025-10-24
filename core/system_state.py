@@ -9,6 +9,9 @@ class SystemState:
         self.bus = bus
 
         # State variables
+        self.cam_width = None
+        self.cam_height = None
+
         self.skipped_startup = False
         self.needQR = False
         self.hasConnection = False
