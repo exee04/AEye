@@ -1,140 +1,141 @@
 import cv2
-import json
+from ultralytics import YOLO
+import os
 import numpy as np
 import asyncio
-import os
 
-# --- Calibration (From your provided parameters) ---
-CAMERA_MATRIX = np.array([
-    [9.98753294e+02, 0.0, 1.15982896e+03],
-    [0.0, 1.00373051e+03, 6.50888400e+02],
-    [0.0, 0.0, 1.0]
-])
-DIST_COEFFS = np.array([[-0.05798983, 0.13855422, 0.00113712, 0.00015827, -0.09092239]])
-
-# --- ArUco setup ---
-ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-ARUCO_PARAMS = cv2.aruco.DetectorParameters()
 class EducationMode:
+    TARGET_IDS = {1, 5}
+
     def __init__(self, bus, state):
         self.bus = bus
         self.state = state
         self.bus.subscribe("frame_ready", self.onFrame)
+        self.bus.subscribe("enter_EducationMode", self.onEnter)
+        self.bus.subscribe("button_press", self.captureFrame)
 
+        self.frame = None
+        self.debugFrame = None
+        self.hasVisibleMarker = False
+        self.captureFlag = False
 
+        # --- ArUco Setup ---
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        self.parameters = cv2.aruco.DetectorParameters()
+        self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.parameters)
 
-    def load_offline_data(path="offline_braille.json"):
-        if not os.path.exists(path):
-            print(f"[EducationMode] ❌ Missing {path}")
-            return None
-        with open(path, "r") as f:
-            data = json.load(f)
-        print(f"[EducationMode] ✅ Loaded {path}")
-        return data
+        # --- Camera Calibration Values ---
+        self.camera_matrix = np.array([
+            [9.98753294e+02, 0.0, 1.15982896e+03],
+            [0.0, 1.00373051e+03, 6.50888400e+02],
+            [0.0, 0.0, 1.0]
+        ])
+        self.dist_coeffs = np.array([[-0.05798983, 0.13855422, 0.00113712, 0.00015827, -0.09092239]])
 
-
-    async def onEnter(data, state, bus):
-        """Called when entering EducationMode."""
-        state.current_system_mode = "EducationMode"
-        await bus.publish("tts", {"text": "Entering Education Mode"})
-        print("[EducationMode] Started in offline mode")
-        return
-
+        # --- Marker Parameters ---
+        self.marker_length = 0.02  # 2 cm = 0.02 m
 
     async def onFrame(self, data):
-        """Main EducationMode loop — runs on each frame."""
         if self.state.current_system_mode != "EducationMode":
             return
 
-        frame = data.get("frame")
-        if frame is None:
+        if not self.state.hasConnection:
+            await self.offlineCamera(data)
             return
 
-        # --- Step 1: Undistort frame ---
-        undistorted = cv2.undistort(frame, CAMERA_MATRIX, DIST_COEFFS)
-
-        # --- Step 2: Detect ArUco markers ---
-        corners, ids, _ = cv2.aruco.detectMarkers(undistorted, ARUCO_DICT, parameters=ARUCO_PARAMS)
-
-        if ids is None:
-            self.state.hasBraillePaper = False
+        if self.state.hasBraillePaper:
             return
 
-        ids = ids.flatten()
-        output = undistorted.copy()
+        self.frame = data.get("frame")
+        self.debugFrame = self.frame.copy()
 
-        # --- Step 3: Identify base marker and interaction marker ---
-        base_marker_id = None
-        finger_marker_id = None
-        base_center = None
-        finger_center = None
+        # Detect ArUco markers
+        corners, ids, _ = self.detector.detectMarkers(self.debugFrame)
 
-        # You can choose fixed IDs (e.g., 0 for paper, 1 for finger)
-        for i, marker_id in enumerate(ids):
-            pts = corners[i][0]
-            center = np.mean(pts, axis=0).astype(int)
-            cv2.polylines(output, [pts.astype(int)], True, (0, 255, 0), 2)
-            cv2.putText(output, f"ID:{marker_id}", tuple(center), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+        if ids is not None:
+            ids = ids.flatten()
+            for i, marker_id in enumerate(ids):
+                if marker_id in self.TARGET_IDS:
+                    cv2.aruco.drawDetectedMarkers(self.frame, [corners[i]], np.array([[ids[i]]]))
+                    self.hasVisibleMarker = True
+                    print(f"[OK] Found target marker ID: {marker_id}")
 
-            if marker_id == 0:
-                base_marker_id = marker_id
-                base_center = center
-            elif marker_id == 1:
-                finger_marker_id = marker_id
-                finger_center = center
+                    # --- Pose Estimation ---
+                    obj_points = np.array([
+                        [-self.marker_length / 2,  self.marker_length / 2, 0],
+                        [ self.marker_length / 2,  self.marker_length / 2, 0],
+                        [ self.marker_length / 2, -self.marker_length / 2, 0],
+                        [-self.marker_length / 2, -self.marker_length / 2, 0]
+                    ], dtype=np.float32)
 
-        if base_marker_id is None:
-            # No base marker detected → skip frame
+                    img_points = corners[i][0].astype(np.float32)
+
+                    success, rvec, tvec = cv2.solvePnP(
+                        obj_points,
+                        img_points,
+                        self.camera_matrix,
+                        self.dist_coeffs
+                    )
+                    if success:
+                        cv2.drawFrameAxes(self.frame, self.camera_matrix, self.dist_coeffs, rvec, tvec, 0.01)
+
+                        # Example 3D points in marker space (Braille dots)
+                        braille_points_3d = np.array([
+                            [0.03,  0.02, 0],
+                            [0.04,  0.01, 0],
+                            [0.05,  0.00, 0],
+                            [0.03, -0.01, 0]
+                        ], dtype=np.float32)
+
+                        # Project to image space
+                        img_points, _ = cv2.projectPoints(
+                            braille_points_3d,
+                            rvec,
+                            tvec,
+                            self.camera_matrix,
+                            self.dist_coeffs
+                        )
+
+                        # Draw projected points
+                        for p in img_points:
+                            x, y = int(p[0][0]), int(p[0][1])
+                            cv2.circle(self.frame, (x, y), 4, (0, 0, 255), -1)
+
+                    return  # stop after first valid marker
+
+        self.hasVisibleMarker = False
+
+    async def captureFrame(self, data):
+        if self.state.current_system_mode != "EducationMode":
             return
 
-        self.state.hasBraillePaper = True
+        pin = data.get("pin")
+        if pin == 24:
+            if self.captureFlag:
+                return
+            if not self.state.hasConnection:
+                print("[EducationMode] You need an internet connection to scan the paper")
+                return
+            if self.state.hasBraillePaper:
+                print("There is already a paper")
+                return
+            if not self.hasVisibleMarker:
+                print("Braille paper with the marker must be visible")
+                return
 
-        # --- Step 4: Load offline mapping once ---
-        if not hasattr(self, self.state, "braille_data"):
-            self.state.braille_data = self.load_offline_data()
+            self.captureFlag = True
+            for i in range(3, 0, -1):
+                print(f"Capturing in {i}...")
+                await asyncio.sleep(1)
 
-        if not self.state.braille_data:
-            return
+            print("[Camera] Capturing frame...")
+            await self.bus.publish("camera_capture", {})
+            self.captureFlag = False
 
-        # --- Step 5: Compute scaling based on resolution ---
-        src_w, src_h = 640, 480
-        cur_w, cur_h = self.state.cam_width or 2304, self.state.cam_height or 1296
-        scale_x = cur_w / src_w
-        scale_y = cur_h / src_h
+    async def onEnter(self):
+        return
 
-        # --- Step 6: Draw Braille boxes relative to detected base marker ---
-        base_ref = np.array(self.state.braille_data["base_marker_center"])
-        offset = (base_center - base_ref * [scale_x, scale_y]).astype(int)
-
-        touched_label = None
-        for braille in self.state.braille_data["braille_positions"]:
-            label = braille["label"]
-            rel_x, rel_y = braille["relative"]
-            size_x, size_y = braille["size"]
-
-            abs_x = int(base_center[0] + (rel_x * scale_x))
-            abs_y = int(base_center[1] + (rel_y * scale_y))
-
-            x1, y1 = abs_x - int(size_x * scale_x // 2), abs_y - int(size_y * scale_y // 2)
-            x2, y2 = abs_x + int(size_x * scale_x // 2), abs_y + int(size_y * scale_y // 2)
-
-            color = (255, 0, 0)
-            if finger_center is not None:
-                if x1 <= finger_center[0] <= x2 and y1 <= finger_center[1] <= y2:
-                    color = (0, 255, 255)
-                    touched_label = label
-
-            cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(output, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-
-        # --- Step 7: If user touches a Braille letter ---
-        if touched_label:
-            if getattr(self.state, "last_spoken", None) != touched_label:
-                await self.bus.publish("tts", {"text": f"{touched_label}"})
-                self.state.last_spoken = touched_label
-
-        # --- Step 8: Show debug preview ---
-        self.state.edu_frame = cv2.resize(output, (640, 360))
-        cv2.imshow("Education Mode", self.state.edu_frame)
-        cv2.waitKey(1)
+    async def offlineCamera(self, data):
+        print("Offline Cam")
+        return
 
