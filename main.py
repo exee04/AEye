@@ -21,6 +21,7 @@ async def main(bus, state):
     AudioHAL(bus, state)
     educMode = EducationMode(bus, state)
     camera = CameraHAL(bus, state, show_preview=True, edu_mode=educMode)
+    await bus.publish("camera_switch_res", {"res": (1536, 864)})
     NetworkHandler(bus, state)
     APIHandler(bus, state)
     AccountHandler(bus, state)
@@ -31,7 +32,7 @@ async def main(bus, state):
     # Init Modes
     NavigationHandler(bus, state)
     while True:
-        camera.update()
+        await camera.update()
         await asyncio.sleep(0.15)
 
 if __name__ == "__main__":
