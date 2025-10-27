@@ -20,7 +20,7 @@ class CameraHAL:
         bus,
         state,
         show_preview=False,
-        resolution=(1536, 864),
+        resolution=(2304, 1296),
         target_fps=15,
         edu_mode=None
     ):

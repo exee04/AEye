@@ -1,81 +1,48 @@
 import cv2
+import json
 import numpy as np
 import asyncio
 import os
-from .braille_overlay import BrailleOverlayHandler
 
+# --- Calibration (From your provided parameters) ---
+CAMERA_MATRIX = np.array([
+    [9.98753294e+02, 0.0, 1.15982896e+03],
+    [0.0, 1.00373051e+03, 6.50888400e+02],
+    [0.0, 0.0, 1.0]
+])
+DIST_COEFFS = np.array([[-0.05798983, 0.13855422, 0.00113712, 0.00015827, -0.09092239]])
+
+# --- ArUco setup ---
+ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+ARUCO_PARAMS = cv2.aruco.DetectorParameters()
 class EducationMode:
-    TARGET_IDS = {1, 5}
-
     def __init__(self, bus, state):
         self.bus = bus
         self.state = state
         self.bus.subscribe("frame_ready", self.onFrame)
-        self.bus.subscribe("enter_EducationMode", self.onEnter)
-        self.bus.subscribe("button_press", self.captureFrame)
 
-        # marker physical size (1 inch)
-        self.marker_size_m = 0.0254
 
-        # camera intrinsics will be set from SystemState; fallback later if needed
-        self.cam_w = getattr(self.state, "cam_width", None)
-        self.cam_h = getattr(self.state, "cam_height", None)
-        self.fov = 120.0  # degrees fallback
 
-        # aruco detector (modern API)
-        self.detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50))
-        self.frame = None
-        self.debugFrame = None
+    def load_offline_data(path="offline_braille.json"):
+        if not os.path.exists(path):
+            print(f"[EducationMode] ❌ Missing {path}")
+            return None
+        with open(path, "r") as f:
+            data = json.load(f)
+        print(f"[EducationMode] ✅ Loaded {path}")
+        return data
 
-        # braille overlay instance
-        self.braille = BrailleOverlayHandler(camera_matrix=None, dist_coeffs=None, marker_size_m=self.marker_size_m)
-        # set intrinsics if we have them now (otherwise we'll set on first frame)
-        if self.cam_w and self.cam_h:
-            self.braille.set_camera_intrinsics(self.cam_w, self.cam_h, fov_deg=self.fov)
 
-        # load layout (expect mm-based JSON)
-        layout_path = os.path.join(os.path.dirname(__file__), "offline_braille_map.json")
-        self.braille.load_braille_layout(layout_path)
+    async def onEnter(data, state, bus):
+        """Called when entering EducationMode."""
+        state.current_system_mode = "EducationMode"
+        await bus.publish("tts", {"text": "Entering Education Mode"})
+        print("[EducationMode] Started in offline mode")
+        return
 
-        # smoothing state (for filtering in EducationMode when needed)
-        # but most smoothing is inside BrailleOverlayHandler
-        self.prev_detection_time = 0.0
-
-        # register mouse callback (CameraHAL uses window name "Camera Preview")
-        try:
-            cv2.setMouseCallback("Camera Preview", self.braille.on_mouse_move)
-        except Exception:
-            pass
-
-    # Helper: pose estimator using solvePnP (works with ArucoDetector corners)
-    def estimate_pose_from_corners(self, marker_corners):
-        """
-        marker_corners: array like shape (1,4,2) or (4,2)
-        returns rvec (3,), tvec (3,) in meters
-        """
-        c = np.asarray(marker_corners).reshape(4, 2).astype(np.float32)
-
-        half = self.marker_size_m / 2.0
-        obj_points = np.array([
-            [-half,  half, 0.0],
-            [ half,  half, 0.0],
-            [ half, -half, 0.0],
-            [-half, -half, 0.0]
-        ], dtype=np.float32)
-
-        # ensure camera intrinsics exist
-        if self.braille.camera_matrix is None:
-            # fallback to estimate from state or use default
-            cam_w = getattr(self.state, "cam_width", 1536)
-            cam_h = getattr(self.state, "cam_height", 864)
-            self.braille.set_camera_intrinsics(cam_w, cam_h, fov_deg=self.fov)
-
-        success, rvec, tvec = cv2.solvePnP(obj_points, c, self.braille.camera_matrix, self.braille.dist_coeffs)
-        if not success:
-            return None, None
-        return rvec.reshape(3), tvec.reshape(3)
 
     async def onFrame(self, data):
+        """Main EducationMode loop — runs on each frame."""
         if self.state.current_system_mode != "EducationMode":
             return
 
@@ -83,85 +50,91 @@ class EducationMode:
         if frame is None:
             return
 
-        self.frame = frame
-        self.debugFrame = frame.copy()
+        # --- Step 1: Undistort frame ---
+        undistorted = cv2.undistort(frame, CAMERA_MATRIX, DIST_COEFFS)
 
-        # aruco detect
-        corners, ids, _ = self.detector.detectMarkers(self.frame)
-        detected = False
-        if ids is not None:
-            ids = ids.flatten()
-            for i, marker_id in enumerate(ids):
-                if marker_id in self.TARGET_IDS:
-                    marker_corners = corners[i]
-                    # estimate pose
-                    rvec, tvec = self.estimate_pose_from_corners(marker_corners)
-                    if rvec is None or tvec is None:
-                        continue
+        # --- Step 2: Detect ArUco markers ---
+        corners, ids, _ = cv2.aruco.detectMarkers(undistorted, ARUCO_DICT, parameters=ARUCO_PARAMS)
 
-                    # center pixel for convenience
-                    center_px = tuple(np.mean(marker_corners.reshape(-1, 2), axis=0).astype(int))
-
-                    # update filtered pose inside braille handler (robust)
-                    self.braille.update_pose_filtered(rvec, tvec)
-
-                    # draw debug outlines & axes (use filtered pose if available)
-                    cv2.aruco.drawDetectedMarkers(self.debugFrame, [marker_corners])
-                    # draw axes using the smoothed pose for visual stability
-                    if self.braille._pose_initialized:
-                        try:
-                            cv2.drawFrameAxes(self.debugFrame,
-                                              self.braille.camera_matrix,
-                                              self.braille.dist_coeffs,
-                                              self.braille._rvec.reshape(3,1).astype(np.float32),
-                                              self.braille._tvec_filt.reshape(3,1).astype(np.float32),
-                                              self.marker_size_m * 0.5)
-                        except Exception:
-                            pass
-
-                    detected = True
-                    break
-
-        # If we have a filtered pose, draw the braille overlay anchored to it
-        if self.braille._pose_initialized:
-            self.debugFrame = self.braille.draw(self.debugFrame)
-
-        # show debug
-        self.frame = self.debugFrame
-
-    async def captureFrame(self, data):
-        # preserve your existing capture behavior - simplified here
-        pin = data.get("pin")
-        if pin != 24:
-            return
-        # implement your capture conditions
-        if not getattr(self.state, "hasConnection", True):
-            print("[EducationMode] Need internet to capture (scan) paper.")
-            return
-        if not self.braille._pose_initialized:
-            print("[EducationMode] Marker not visible / pose not initialized.")
+        if ids is None:
+            self.state.hasBraillePaper = False
             return
 
-        print("[Camera] Saving capture...")
-        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        CACHE_DIR = os.path.join(PROJECT_ROOT, "cache")
-        os.makedirs(CACHE_DIR, exist_ok=True)
-        raw_path = os.path.join(CACHE_DIR, "1_raw.jpg")
-        cv2.imwrite(raw_path, self.frame)
-        print("[Camera] Saved", raw_path)
+        ids = ids.flatten()
+        output = undistorted.copy()
 
-    async def onEnter(self):
-        # reload layout if resolution changed
-        cam_w = getattr(self.state, "cam_width", None)
-        cam_h = getattr(self.state, "cam_height", None)
-        if cam_w and cam_h:
-            self.braille.set_camera_intrinsics(cam_w, cam_h, fov_deg=self.fov)
+        # --- Step 3: Identify base marker and interaction marker ---
+        base_marker_id = None
+        finger_marker_id = None
+        base_center = None
+        finger_center = None
 
-        layout_path = os.path.join(os.path.dirname(__file__), "offline_braille_map.json")
-        self.braille.load_braille_layout(layout_path)
+        # You can choose fixed IDs (e.g., 0 for paper, 1 for finger)
+        for i, marker_id in enumerate(ids):
+            pts = corners[i][0]
+            center = np.mean(pts, axis=0).astype(int)
+            cv2.polylines(output, [pts.astype(int)], True, (0, 255, 0), 2)
+            cv2.putText(output, f"ID:{marker_id}", tuple(center), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
-    async def offlineCamera(self, data):
-        # fallback when offline - you can show a static UI or similar
-        print("Offline Cam")
-        return
+            if marker_id == 0:
+                base_marker_id = marker_id
+                base_center = center
+            elif marker_id == 1:
+                finger_marker_id = marker_id
+                finger_center = center
+
+        if base_marker_id is None:
+            # No base marker detected → skip frame
+            return
+
+        self.state.hasBraillePaper = True
+
+        # --- Step 4: Load offline mapping once ---
+        if not hasattr(self, self.state, "braille_data"):
+            self.state.braille_data = self.load_offline_data()
+
+        if not self.state.braille_data:
+            return
+
+        # --- Step 5: Compute scaling based on resolution ---
+        src_w, src_h = 640, 480
+        cur_w, cur_h = self.state.cam_width or 2304, self.state.cam_height or 1296
+        scale_x = cur_w / src_w
+        scale_y = cur_h / src_h
+
+        # --- Step 6: Draw Braille boxes relative to detected base marker ---
+        base_ref = np.array(self.state.braille_data["base_marker_center"])
+        offset = (base_center - base_ref * [scale_x, scale_y]).astype(int)
+
+        touched_label = None
+        for braille in self.state.braille_data["braille_positions"]:
+            label = braille["label"]
+            rel_x, rel_y = braille["relative"]
+            size_x, size_y = braille["size"]
+
+            abs_x = int(base_center[0] + (rel_x * scale_x))
+            abs_y = int(base_center[1] + (rel_y * scale_y))
+
+            x1, y1 = abs_x - int(size_x * scale_x // 2), abs_y - int(size_y * scale_y // 2)
+            x2, y2 = abs_x + int(size_x * scale_x // 2), abs_y + int(size_y * scale_y // 2)
+
+            color = (255, 0, 0)
+            if finger_center is not None:
+                if x1 <= finger_center[0] <= x2 and y1 <= finger_center[1] <= y2:
+                    color = (0, 255, 255)
+                    touched_label = label
+
+            cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(output, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+
+        # --- Step 7: If user touches a Braille letter ---
+        if touched_label:
+            if getattr(self.state, "last_spoken", None) != touched_label:
+                await self.bus.publish("tts", {"text": f"{touched_label}"})
+                self.state.last_spoken = touched_label
+
+        # --- Step 8: Show debug preview ---
+        self.state.edu_frame = cv2.resize(output, (640, 360))
+        cv2.imshow("Education Mode", self.state.edu_frame)
+        cv2.waitKey(1)
 

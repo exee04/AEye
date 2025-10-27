@@ -4,6 +4,7 @@ core/cache/*
 cache/
 config/
 test/
+CameraCalibration/
 .env
 *.zsh
 *.pyc
