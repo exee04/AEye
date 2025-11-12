@@ -32,13 +32,13 @@ class ButtonHAL:
         print("[ButtonHAL] Initializing buttons...")
 
         # Define buttons (on real Pi these are GPIO pins)
-        self.button1 = Button(17)
-        self.button2 = Button(27)
-        self.button3 = Button(22)
-        self.button4 = Button(23)
-        self.volUp   = Button(5)
-        self.volDown = Button(6)
-        self.mainBtn = Button(24)
+        self.button1 = Button(27)
+        self.button2 = Button(22)
+        self.button3 = Button(23)
+        self.button4 = Button(24)
+        self.volUp   = Button(26)
+        self.volDown = Button(16)
+        self.mainBtn = Button(25)
 
         self.buttons = {
             17: self.button1,

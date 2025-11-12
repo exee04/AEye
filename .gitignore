@@ -10,3 +10,7 @@ CameraCalibration/
 *.pyc
 __pycache__/*
 .lgd-nfy0
+*.sh
+*.log
+*.txt
+*.png

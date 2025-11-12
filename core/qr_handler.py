@@ -17,6 +17,10 @@ class QRHandler:
             return
 
         text, points, _ = self.detector.detectAndDecode(frame)
+        if points is not None and len(points) > 0:
+            hull = cv2.convexHull(points)
+        else:
+            hull = []
         if not text:
             return
 

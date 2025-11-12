@@ -68,11 +68,9 @@ class EducationMode:
                 self.x1, self.y1, self.x2, self.y2 = [int(coord) for coord in box]
                 break  # Use first detection only
             break
-        
         if None in [self.x1, self.y1, self.x2, self.y2]:
             print("[EducationMode] No paper detected!")
             return
-        
         print(f"[EducationMode] Paper boundaries: ({self.x1}, {self.y1}) to ({self.x2}, {self.y2})")
         
         # Step 2: Crop the paper from filtered frame

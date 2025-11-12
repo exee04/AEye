@@ -32,13 +32,17 @@ class CameraHAL:
         self.preview_config = None
         self.capture_config = None
 
+        # Focus region tracking
+        self.focus_region = None  # Will store (x, y, width, height) normalized coordinates
+
         # Event subscriptions
         self.bus.subscribe("camera_switch_res", self.on_switch_resolution)
         self.bus.subscribe("camera_capture", self.on_capture)
         self.bus.subscribe("camera_toggle_undistort", self.toggle_undistort)
+        self.bus.subscribe("camera_set_focus_region", self.set_focus_region)
 
         self._init_camera()
-
+    
     # -----------------------------
     def _init_camera(self):
         """Initialize PiCamera2 with preview and capture configurations."""
@@ -50,12 +54,30 @@ class CameraHAL:
         )
         self.pi_cam.configure(self.preview_config)
         self.pi_cam.start()
+        
+        # Set initial focus mode to auto
+        try:
+            self.pi_cam.set_controls({"AfMode": controls.AfModeEnum.Auto})
+            print("[CameraHAL] ✅ Started preview with auto-focus")
+        except Exception as e:
+            print(f"[CameraHAL] ⚠️ Could not set auto-focus: {e}")
+        
         print(f"[CameraHAL] ✅ Started preview at {self.low_res}")
 
     # -----------------------------
+    @staticmethod
     def scale_calibration(camera_matrix, dist_coeffs, orig_res, new_res):
         """
         Scale the camera matrix to match a new resolution.
+        
+        Args:
+            camera_matrix: Original camera matrix
+            dist_coeffs: Original distortion coefficients
+            orig_res: Original resolution (width, height)
+            new_res: New resolution (width, height)
+            
+        Returns:
+            tuple: (scaled_camera_matrix, dist_coeffs)
         """
         scale_x = new_res[0] / orig_res[0]
         scale_y = new_res[1] / orig_res[1]
@@ -67,7 +89,94 @@ class CameraHAL:
         new_camera_matrix[1, 2] *= scale_y  # cy
 
         return new_camera_matrix, dist_coeffs
-   # -----------------------------
+
+    # -----------------------------
+    def set_focus_region(self, data):
+        """
+        Set camera to focus on a specific region (paper borders).
+        
+        Args:
+            data: Dictionary containing 'paper_borders' as [x1, y1, x2, y2] 
+                  in normalized coordinates (0-1) relative to frame size
+        """
+        try:
+            paper_borders = data.get("paper_borders")
+            if not paper_borders or len(paper_borders) != 4:
+                print("[CameraHAL] ⚠️ Invalid paper borders format. Expected [x1, y1, x2, y2]")
+                return
+            
+            x1, y1, x2, y2 = paper_borders
+            
+            # Validate normalized coordinates
+            if not all(0 <= coord <= 1 for coord in [x1, y1, x2, y2]):
+                print("[CameraHAL] ⚠️ Paper borders must be in normalized coordinates (0-1)")
+                return
+            
+            # Calculate center and size of the region
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+            width = x2 - x1
+            height = y2 - y1
+            
+            # Store focus region for visualization
+            self.focus_region = (x1, y1, width, height)
+            
+            # Convert to pixel coordinates for the current resolution
+            current_width, current_height = self.resolution
+            pixel_center_x = int(center_x * current_width)
+            pixel_center_y = int(center_y * current_height)
+            pixel_width = int(width * current_width)
+            pixel_height = int(height * current_height)
+            
+            print(f"[CameraHAL] 🔍 Setting focus region: center=({center_x:.2f}, {center_y:.2f}), size=({width:.2f}, {height:.2f})")
+            print(f"[CameraHAL] 📏 Pixel coordinates: center=({pixel_center_x}, {pixel_center_y}), size=({pixel_width}, {pixel_height})")
+            
+            # Set focus region using libcamera controls
+            try:
+                # Normalized coordinates for libcamera (0.0-1.0)
+                roi_x = center_x - width/2
+                roi_y = center_y - height/2
+                roi_width = width
+                roi_height = height
+                
+                # Ensure ROI stays within bounds
+                roi_x = max(0.0, min(roi_x, 1.0))
+                roi_y = max(0.0, min(roi_y, 1.0))
+                roi_width = max(0.1, min(roi_width, 1.0 - roi_x))
+                roi_height = max(0.1, min(roi_height, 1.0 - roi_y))
+                
+                controls_dict = {
+                    "AfMode": controls.AfModeEnum.Auto,
+                    "AfMetering": controls.AfMeteringEnum.Windows,
+                    "AfWindows": [(roi_x, roi_y, roi_width, roi_height)]
+                }
+                
+                self.pi_cam.set_controls(controls_dict)
+                print(f"[CameraHAL] ✅ Focus region set: ROI=({roi_x:.2f}, {roi_y:.2f}, {roi_width:.2f}, {roi_height:.2f})")
+                
+            except Exception as e:
+                print(f"[CameraHAL] ⚠️ Could not set focus region via controls: {e}")
+                # Fallback: try simple center focus
+                try:
+                    self.pi_cam.set_controls({"AfMode": controls.AfModeEnum.Auto})
+                    print("[CameraHAL] 🔄 Fallback to auto-focus mode")
+                except Exception as fallback_error:
+                    print(f"[CameraHAL] ❌ Fallback auto-focus also failed: {fallback_error}")
+                    
+        except Exception as e:
+            print(f"[CameraHAL] ❌ Error setting focus region: {e}")
+
+    # -----------------------------
+    def reset_focus(self):
+        """Reset focus to the entire frame (auto-focus)."""
+        try:
+            self.pi_cam.set_controls({"AfMode": controls.AfModeEnum.Auto})
+            self.focus_region = None
+            print("[CameraHAL] 🔄 Focus reset to auto (full frame)")
+        except Exception as e:
+            print(f"[CameraHAL] ⚠️ Could not reset focus: {e}")
+
+    # -----------------------------
     def get_frame(self):
         """Capture frame from PiCamera2."""
         try:
@@ -79,40 +188,24 @@ class CameraHAL:
 
     # -----------------------------
     def undistort_frame(self, frame, resolution):
+        """Apply undistortion to frame based on current resolution."""
         if not self.undistort_enabled:
             return frame
 
-        # --- Original calibration resolution ---
-        orig_res = (2304, 1296)
-
-        # --- Helper function for scaling calibration ---
-        def scale_calibration(camera_matrix, dist_coeffs, orig_res, new_res):
-            scale_x = new_res[0] / orig_res[0]
-            scale_y = new_res[1] / orig_res[1]
-
-            new_camera_matrix = camera_matrix.copy()
-            new_camera_matrix[0, 0] *= scale_x  # fx
-            new_camera_matrix[1, 1] *= scale_y  # fy
-            new_camera_matrix[0, 2] *= scale_x  # cx
-            new_camera_matrix[1, 2] *= scale_y  # cy
-
-            return new_camera_matrix, dist_coeffs
-
-        # --- Scale according to active resolution ---
-        if resolution == (4608, 2592):
-            camera_matrix_scaled, dist_coeffs_scaled = scale_calibration(
-                self.camera_matrix, self.dist_coeffs, orig_res, (4608, 2592)
+        # Scale calibration for current resolution
+        if resolution == self.high_res:
+            camera_matrix_scaled, dist_coeffs_scaled = self.scale_calibration(
+                self.camera_matrix, self.dist_coeffs, self.orig_size, self.high_res
             )
-        elif resolution == (1536, 864):
-            camera_matrix_scaled, dist_coeffs_scaled = scale_calibration(
-                self.camera_matrix, self.dist_coeffs, orig_res, (1536, 864)
+        elif resolution == self.low_res:
+            camera_matrix_scaled, dist_coeffs_scaled = self.scale_calibration(
+                self.camera_matrix, self.dist_coeffs, self.orig_size, self.low_res
             )
         else:
             camera_matrix_scaled, dist_coeffs_scaled = self.camera_matrix, self.dist_coeffs
 
-        # --- Apply undistortion ---
+        # Apply undistortion
         frame_undistorted = cv2.undistort(frame, camera_matrix_scaled, dist_coeffs_scaled)
-
         return frame_undistorted
 
     # -----------------------------
@@ -123,6 +216,24 @@ class CameraHAL:
             if frame is None:
                 await asyncio.sleep(0.02)
                 continue
+
+            # Draw focus region on preview if set
+            if self.show_preview and self.focus_region is not None:
+                frame_with_focus = frame.copy()
+                h, w = frame_with_focus.shape[:2]
+                x1, y1, width, height = self.focus_region
+                
+                # Convert normalized to pixel coordinates
+                x1_px = int(x1 * w)
+                y1_px = int(y1 * h)
+                x2_px = int((x1 + width) * w)
+                y2_px = int((y1 + height) * h)
+                
+                # Draw rectangle around focus region
+                cv2.rectangle(frame_with_focus, (x1_px, y1_px), (x2_px, y2_px), (0, 255, 0), 2)
+                cv2.putText(frame_with_focus, "Focus Region", (x1_px, y1_px - 10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                frame = frame_with_focus
 
             # Publish current frame (async)
             asyncio.create_task(
@@ -157,11 +268,24 @@ class CameraHAL:
                         2,
                         cv2.LINE_AA,
                     )
+                    
+                    # Add focus region info
+                    if self.focus_region is not None:
+                        cv2.putText(
+                            overlay,
+                            "Focus: Paper Region",
+                            (15, 80),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (0, 255, 0),
+                            2,
+                            cv2.LINE_AA,
+                        )
+                    
                     preview_resized = cv2.resize(overlay, (640, 360))
                     cv2.imshow("Camera Preview", preview_resized)
                     cv2.waitKey(1)
 
-            time.sleep(0.005)
             await asyncio.sleep(0.01)
 
     # -----------------------------
@@ -186,29 +310,17 @@ class CameraHAL:
 
     def apply_braille_filters(self, frame):
         """Apply Braille-optimized filters matching the filter configuration."""
-        # --- Convert to grayscale (always done for processing) ---
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # --- CLAHE (ON in your config) ---
-        # Using same parameters as your first code
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(gray)
         
-        # --- Sharpen (ON in your config with amount 37) ---
-        # Convert trackbar value 37 to actual sharpen amount (37/10 = 3.7)
         sharpen_amount = 3.7  # This matches your SharpenAmt:37
         kernel = np.array([[-1, -1, -1],
                            [-1, 9, -1],
                            [-1, -1, -1]])
         sharpened = cv2.filter2D(enhanced, -1, kernel)
-        
-        # Alternative sharpen method (more similar to your first code):
-        # blurred = cv2.GaussianBlur(enhanced, (3, 3), 0)
-        # sharpened = cv2.addWeighted(enhanced, 1.0 + sharpen_amount, blurred, -sharpen_amount, 0)
-        
-        # --- Convert back to BGR for consistency across modules ---
         return sharpened
-
 
     # -----------------------------
     async def on_capture(self, data):
@@ -241,7 +353,6 @@ class CameraHAL:
 
             raw_path = os.path.join(save_dir, f"capture_raw_{timestamp}.png")
             filtered_path = os.path.join(save_dir, f"capture_filtered_{timestamp}.png")
-
 
             cv2.imwrite(raw_path, raw_undistorted)
             cv2.imwrite(filtered_path, filtered)
@@ -276,4 +387,3 @@ class CameraHAL:
         self.pi_cam.stop()
         cv2.destroyAllWindows()
         print("[CameraHAL] 📴 Camera released.")
-
