@@ -52,42 +52,96 @@ class EducationMode:
         self.all_detections = []  # Store all detections across windows
 
     async def onImageCaptured(self, data):
-        """Process captured image with sliding window approach"""
-        self.x1 = self.y1 = self.x2 = self.y2 = None
-        self.all_detections = []
-        
+        """Detect paper, set autofocus, and trigger a second capture for clarity."""
         raw_frame = data.get("raw")
         filtered_frame = data.get("filtered")
         resolution = data.get("resolution", (0, 0))
-        print(f"[EducationMode] Received captured frames at {resolution}")
-        
+        print(f"[EducationMode] 📸 Frame captured at {resolution}")
+
+        if raw_frame is None or filtered_frame is None:
+            print("[EducationMode] ❌ Missing frame data from capture.")
+            print("[EducationMode] ℹ️ Tip: Align the camera directly above the paper for best accuracy.")
+            return
+
+        refocused = data.get("refocused", False)
+
+        if refocused:
+            print("[EducationMode] ✅ Refocused frame received. Proceeding with crop and analysis.")
+            if None in [self.x1, self.y1, self.x2, self.y2]:
+                print("[EducationMode] ⚠️ Missing paper coordinates; skipping crop.")
+                return
+
+            frame_h, frame_w = filtered_frame.shape[:2]
+            x1 = int(max(0, min(self.x1, frame_w - 1)))
+            y1 = int(max(0, min(self.y1, frame_h - 1)))
+            x2 = int(max(0, min(self.x2, frame_w)))
+            y2 = int(max(0, min(self.y2, frame_h)))
+
+            if x2 <= x1 or y2 <= y1:
+                print("[EducationMode] ⚠️ Cropping bounds invalid after refocus.")
+                return
+
+            cropped = filtered_frame[y1:y2, x1:x2]
+            if cropped.size == 0:
+                print("[EducationMode] ⚠️ Cropped image is empty after refocus.")
+                return
+
+            self.all_detections = []
+            cv2.imwrite("core/modes/cropped_full.png", cropped)
+            print(f"[EducationMode] ✂️ Cropped size: {cropped.shape}")
+            await self.process_with_sliding_window(cropped)
+            await self.create_final_output(cropped)
+            return
+
+        # Reset detection state for initial autofocus pass
+        self.x1 = self.y1 = self.x2 = self.y2 = None
+        self.all_detections = []
+
         # Step 1: Detect paper boundaries
         paper_results = self.paperModel(raw_frame)
         for r in paper_results:
             for box in r.boxes.xyxy:
                 self.x1, self.y1, self.x2, self.y2 = [int(coord) for coord in box]
-                break  # Use first detection only
+                break
             break
+
         if None in [self.x1, self.y1, self.x2, self.y2]:
-            print("[EducationMode] No paper detected!")
+            print("[EducationMode] ❌ No paper detected. Please adjust camera alignment.")
+            print("[EducationMode] ℹ️ Tip: Align the camera directly above the paper for best accuracy.")
             return
-        print(f"[EducationMode] Paper boundaries: ({self.x1}, {self.y1}) to ({self.x2}, {self.y2})")
-        
-        # Step 2: Crop the paper from filtered frame
-        cropped = filtered_frame[int(self.y1):int(self.y2), int(self.x1):int(self.x2)]
-        
-        if cropped.size == 0:
-            print("[EducationMode] Cropped image is empty!")
+
+        frame_h, frame_w = raw_frame.shape[:2]
+
+        # Clamp bounds to frame size
+        self.x1 = max(0, min(self.x1, frame_w - 1))
+        self.y1 = max(0, min(self.y1, frame_h - 1))
+        self.x2 = max(0, min(self.x2, frame_w))
+        self.y2 = max(0, min(self.y2, frame_h))
+
+        if self.x2 <= self.x1 or self.y2 <= self.y1:
+            print("[EducationMode] ❌ Invalid paper bounds detected.")
+            print("[EducationMode] ℹ️ Tip: Align the camera directly above the paper for best accuracy.")
             return
-            
-        cv2.imwrite("core/modes/cropped_full.png", cropped)
-        print(f"[EducationMode] Full cropped size: {cropped.shape}")
-        
-        # Step 3: Process with sliding window
-        await self.process_with_sliding_window(cropped)
-        
-        # Step 4: Create final output with all detections
-        await self.create_final_output(cropped)
+
+        print(f"[EducationMode] 📄 Paper detected: ({self.x1}, {self.y1}) → ({self.x2}, {self.y2})")
+
+        # Step 2: Compute normalized bounding box for autofocus
+        norm_x1 = self.x1 / frame_w
+        norm_y1 = self.y1 / frame_h
+        norm_x2 = self.x2 / frame_w
+        norm_y2 = self.y2 / frame_h
+
+        # Step 3: Publish focus region event
+        await self.bus.publish("camera_set_focus_region", {
+            "paper_borders": [float(norm_x1), float(norm_y1), float(norm_x2), float(norm_y2)]
+        })
+        print("[EducationMode] 🎯 Focus region published.")
+        print("[EducationMode] ℹ️ Tip: Align the camera directly above the paper for best accuracy.")
+
+        # Step 4: Wait for autofocus to stabilize, then re-capture
+        await asyncio.sleep(1.0)
+        print("[EducationMode] 🔁 Triggering second capture after AF lock...")
+        await self.bus.publish("camera_capture", {"refocused": True, "wait_focus": True})
 
     async def process_with_sliding_window(self, cropped_image):
         """Process cropped image using sliding window approach"""
@@ -150,7 +204,8 @@ class EducationMode:
                     'coords': (x1_global, y1_global, x2_global, y2_global),
                     'confidence': float(conf),
                     'class': cls,
-                    'class_name': self.brailleModel.names[cls] if hasattr(self.brailleModel, 'names') else str(cls)
+                    'class_name': self.brailleModel.names[cls] if hasattr(self.brailleModel, 'names') else str(cls),
+                    'window': (offset_x, offset_y, self.window_width, self.window_height)
                 }
                 
                 # Check for duplicates (same area with high overlap)
@@ -196,6 +251,20 @@ class EducationMode:
         else:
             output_image = cropped_image.copy()
         
+        # Draw sliding window coverage for visualizing model input regions
+        window_rects = set()
+        for det in self.all_detections:
+            window_info = det.get('window')
+            if window_info:
+                window_rects.add(tuple(window_info))
+
+        for wx, wy, w_width, w_height in window_rects:
+            top_left = (int(wx), int(wy))
+            bottom_right = (int(wx + w_width), int(wy + w_height))
+            cv2.rectangle(output_image, top_left, bottom_right, (255, 165, 0), 2)
+            cv2.putText(output_image, "window", (top_left[0] + 5, top_left[1] + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 165, 0), 2, cv2.LINE_AA)
+
         # Plot all detections
         for i, detection in enumerate(self.all_detections):
             x1, y1, x2, y2 = detection['coords']
@@ -210,7 +279,7 @@ class EducationMode:
             label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
             cv2.rectangle(output_image, (x1, y1 - label_size[1] - 10), 
                          (x1 + label_size[0], y1), (0, 255, 0), -1)
-            cv2.putText(output_image, label, (x1, y1 - 5), 
+            cv2.putText(output_image, label, (x1, y1 - 5),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
         
         # Save final output

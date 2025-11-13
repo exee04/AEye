@@ -13,14 +13,15 @@ from core.modes.education_mode import EducationMode
 from hal.hal_buttons import ButtonHAL
 from hal.hal_audio import AudioHAL
 from hal.hal_camera import CameraHAL
-
+from hal.hal_vibrate import VibrateHAL
 
 async def main(bus, state):
     print("Initializing system...")
     ButtonHAL(bus, asyncio.get_event_loop())
     AudioHAL(bus, state)
+    VibrateHAL(bus, state)
     educMode = EducationMode(bus, state)
-    camera = CameraHAL(bus, state, show_preview=True, edu_mode=educMode)
+    camera = CameraHAL(bus, state, show_preview=False, edu_mode=educMode)
     await bus.publish("camera_switch_res", {"res": (1536, 864)})
     NetworkHandler(bus, state)
     APIHandler(bus, state)

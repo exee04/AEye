@@ -34,6 +34,9 @@ class CameraHAL:
 
         # Focus region tracking
         self.focus_region = None  # Will store (x, y, width, height) normalized coordinates
+        self.focus_lock_event = asyncio.Event()
+        self.focus_lock_event.set()
+        self._focus_task = None
 
         # Event subscriptions
         self.bus.subscribe("camera_switch_res", self.on_switch_resolution)
@@ -91,7 +94,7 @@ class CameraHAL:
         return new_camera_matrix, dist_coeffs
 
     # -----------------------------
-    def set_focus_region(self, data):
+    async def set_focus_region(self, data):
         """
         Set camera to focus on a specific region (paper borders).
         
@@ -100,6 +103,7 @@ class CameraHAL:
                   in normalized coordinates (0-1) relative to frame size
         """
         try:
+            await asyncio.sleep(0)  # allow cooperative scheduling
             paper_borders = data.get("paper_borders")
             if not paper_borders or len(paper_borders) != 4:
                 print("[CameraHAL] ⚠️ Invalid paper borders format. Expected [x1, y1, x2, y2]")
@@ -134,26 +138,53 @@ class CameraHAL:
             # Set focus region using libcamera controls
             try:
                 # Normalized coordinates for libcamera (0.0-1.0)
-                roi_x = center_x - width/2
-                roi_y = center_y - height/2
+                roi_x = center_x - width / 2
+                roi_y = center_y - height / 2
                 roi_width = width
                 roi_height = height
-                
+
                 # Ensure ROI stays within bounds
                 roi_x = max(0.0, min(roi_x, 1.0))
                 roi_y = max(0.0, min(roi_y, 1.0))
                 roi_width = max(0.1, min(roi_width, 1.0 - roi_x))
                 roi_height = max(0.1, min(roi_height, 1.0 - roi_y))
-                
+
                 controls_dict = {
                     "AfMode": controls.AfModeEnum.Auto,
                     "AfMetering": controls.AfMeteringEnum.Windows,
-                    "AfWindows": [(roi_x, roi_y, roi_width, roi_height)]
                 }
-                
+
+                rect_scale = 65535
+                roi_x_int = max(0, min(int(round(roi_x * rect_scale)), rect_scale))
+                roi_y_int = max(0, min(int(round(roi_y * rect_scale)), rect_scale))
+                roi_width_int = max(1, int(round(roi_width * rect_scale)))
+                roi_height_int = max(1, int(round(roi_height * rect_scale)))
+
+                if roi_x_int + roi_width_int > rect_scale:
+                    roi_width_int = rect_scale - roi_x_int
+                if roi_y_int + roi_height_int > rect_scale:
+                    roi_height_int = rect_scale - roi_y_int
+
+                controls_dict["AfWindows"] = [(roi_x_int, roi_y_int, roi_width_int, roi_height_int)]
+
+                af_trigger_enum = getattr(controls, "AfTriggerEnum", None)
+                if af_trigger_enum is not None:
+                    controls_dict["AfTrigger"] = af_trigger_enum.Start
+                else:
+                    controls_dict["AfTrigger"] = 0
+
+                # Prepare focus wait flag
+                self.focus_lock_event.clear()
+
+                # Cancel previous focus task if running
+                if self._focus_task and not self._focus_task.done():
+                    self._focus_task.cancel()
+
                 self.pi_cam.set_controls(controls_dict)
                 print(f"[CameraHAL] ✅ Focus region set: ROI=({roi_x:.2f}, {roi_y:.2f}, {roi_width:.2f}, {roi_height:.2f})")
-                
+
+                self._focus_task = asyncio.create_task(self._wait_for_autofocus_lock())
+
             except Exception as e:
                 print(f"[CameraHAL] ⚠️ Could not set focus region via controls: {e}")
                 # Fallback: try simple center focus
@@ -162,9 +193,12 @@ class CameraHAL:
                     print("[CameraHAL] 🔄 Fallback to auto-focus mode")
                 except Exception as fallback_error:
                     print(f"[CameraHAL] ❌ Fallback auto-focus also failed: {fallback_error}")
+                finally:
+                    self.focus_lock_event.set()
                     
         except Exception as e:
             print(f"[CameraHAL] ❌ Error setting focus region: {e}")
+            self.focus_lock_event.set()
 
     # -----------------------------
     def reset_focus(self):
@@ -326,11 +360,20 @@ class CameraHAL:
     async def on_capture(self, data):
         """Capture and save both raw and filtered high-res images."""
         try:
+            require_focus_lock = data.get("wait_focus", False)
+            if require_focus_lock:
+                if not self.focus_lock_event.is_set():
+                    print("[CameraHAL] ⏳ Waiting for autofocus lock before capture...")
+                await self.focus_lock_event.wait()
+                print("[CameraHAL] ✅ Autofocus lock confirmed. Proceeding with capture.")
+
             print("[CameraHAL] 📸 Capturing high-res image...")
             self.pi_cam.stop()
             self.pi_cam.configure(self.capture_config)
             self.pi_cam.start()
             await asyncio.sleep(0.4)  # settle exposure/focus
+
+            is_refocused = data.get("refocused", False)
 
             frame = self.get_frame()
             if frame is None:
@@ -363,7 +406,8 @@ class CameraHAL:
             await self.bus.publish("camera_image_captured", {
                 "raw": raw_undistorted,
                 "filtered": filtered,
-                "resolution": self.high_res
+                "resolution": self.high_res,
+                "refocused": is_refocused
             })
 
             # Return to preview mode
@@ -387,3 +431,18 @@ class CameraHAL:
         self.pi_cam.stop()
         cv2.destroyAllWindows()
         print("[CameraHAL] 📴 Camera released.")
+
+    async def _wait_for_autofocus_lock(self):
+        """
+        Runs the Picamera2 autofocus cycle and signals when complete.
+        """
+        try:
+            result = await asyncio.to_thread(self.pi_cam.autofocus_cycle)
+            if result:
+                print("[CameraHAL] 🎯 Autofocus cycle complete.")
+            else:
+                print("[CameraHAL] ⚠️ Autofocus cycle reported failure.")
+        except Exception as e:
+            print(f"[CameraHAL] ❌ Autofocus cycle error: {e}")
+        finally:
+            self.focus_lock_event.set()
