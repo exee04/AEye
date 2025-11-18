@@ -38,7 +38,7 @@ class SystemState:
         if self.current_system_mode != "Initialization":
             return
         pin = data.get("pin")
-        if pin == 24:
+        if pin == 25:
             self.skipped_startup = True
             self.needQR = False
 

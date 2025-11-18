@@ -27,7 +27,7 @@ class AccountHandler:
 
             if self.user_id and self.username:
                 self.state.hasAccount = True
-                print(f"[AccountHandler] Account loaded: {self.username} ({self.user_id})")
+                print(f"[AccountHandler] Account loaded:{self.username} ({self.user_id})")
             else:
                 print("[AccountHandler] Invalid QR data: missing fields")
         except json.JSONDecodeError:

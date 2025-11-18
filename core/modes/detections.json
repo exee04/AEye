@@ -1,0 +1,566 @@
+{
+    "meta": {
+        "total_detections": 34,
+        "unique_classes": 21,
+        "window_sizes_used": [
+            400,
+            550,
+            700
+        ],
+        "confidence_threshold": 0.25
+    },
+    "paper_crop": {
+        "padded_bounds_highres": {
+            "x1": 1318,
+            "y1": 216,
+            "x2": 3280,
+            "y2": 2592
+        }
+    },
+    "detections": [
+        {
+            "class_name": "24",
+            "confidence": 0.9027780294418335,
+            "coords": [
+                1303,
+                343,
+                1344,
+                403
+            ],
+            "center": [
+                1323,
+                373
+            ],
+            "area": 2460,
+            "window_size": 0
+        },
+        {
+            "class_name": "20",
+            "confidence": 0.889894962310791,
+            "coords": [
+                1110,
+                333,
+                1150,
+                397
+            ],
+            "center": [
+                1130,
+                365
+            ],
+            "area": 2560,
+            "window_size": 0
+        },
+        {
+            "class_name": "23",
+            "confidence": 0.8824119567871094,
+            "coords": [
+                1257,
+                340,
+                1295,
+                404
+            ],
+            "center": [
+                1276,
+                372
+            ],
+            "area": 2432,
+            "window_size": 0
+        },
+        {
+            "class_name": "16",
+            "confidence": 0.8823770880699158,
+            "coords": [
+                911,
+                329,
+                951,
+                391
+            ],
+            "center": [
+                931,
+                360
+            ],
+            "area": 2480,
+            "window_size": 0
+        },
+        {
+            "class_name": "8",
+            "confidence": 0.8769923448562622,
+            "coords": [
+                491,
+                395,
+                534,
+                448
+            ],
+            "center": [
+                512,
+                421
+            ],
+            "area": 2279,
+            "window_size": 0
+        },
+        {
+            "class_name": "3",
+            "confidence": 0.8751369714736938,
+            "coords": [
+                211,
+                301,
+                260,
+                364
+            ],
+            "center": [
+                235,
+                332
+            ],
+            "area": 3087,
+            "window_size": 0
+        },
+        {
+            "class_name": "13",
+            "confidence": 0.8680832386016846,
+            "coords": [
+                756,
+                321,
+                798,
+                386
+            ],
+            "center": [
+                777,
+                353
+            ],
+            "area": 2730,
+            "window_size": 0
+        },
+        {
+            "class_name": "18",
+            "confidence": 0.86336749792099,
+            "coords": [
+                1011,
+                329,
+                1051,
+                393
+            ],
+            "center": [
+                1031,
+                361
+            ],
+            "area": 2560,
+            "window_size": 0
+        },
+        {
+            "class_name": "12",
+            "confidence": 0.8609133362770081,
+            "coords": [
+                703,
+                318,
+                747,
+                383
+            ],
+            "center": [
+                725,
+                350
+            ],
+            "area": 2860,
+            "window_size": 0
+        },
+        {
+            "class_name": "14",
+            "confidence": 0.8567960858345032,
+            "coords": [
+                807,
+                320,
+                851,
+                390
+            ],
+            "center": [
+                829,
+                355
+            ],
+            "area": 3080,
+            "window_size": 0
+        },
+        {
+            "class_name": "23",
+            "confidence": 0.842071533203125,
+            "coords": [
+                1115,
+                492,
+                1159,
+                555
+            ],
+            "center": [
+                1137,
+                523
+            ],
+            "area": 2772,
+            "window_size": 0
+        },
+        {
+            "class_name": "17",
+            "confidence": 0.8264633417129517,
+            "coords": [
+                959,
+                325,
+                1003,
+                393
+            ],
+            "center": [
+                981,
+                359
+            ],
+            "area": 2992,
+            "window_size": 0
+        },
+        {
+            "class_name": "4",
+            "confidence": 0.8067154288291931,
+            "coords": [
+                488,
+                306,
+                534,
+                372
+            ],
+            "center": [
+                511,
+                339
+            ],
+            "area": 3036,
+            "window_size": 0
+        },
+        {
+            "class_name": "15",
+            "confidence": 0.7381038665771484,
+            "coords": [
+                858,
+                325,
+                901,
+                389
+            ],
+            "center": [
+                879,
+                357
+            ],
+            "area": 2752,
+            "window_size": 0
+        },
+        {
+            "class_name": "12",
+            "confidence": 0.7227942943572998,
+            "coords": [
+                1306,
+                418,
+                1349,
+                479
+            ],
+            "center": [
+                1327,
+                448
+            ],
+            "area": 2623,
+            "window_size": 0
+        },
+        {
+            "class_name": "24",
+            "confidence": 0.7042005062103271,
+            "coords": [
+                1214,
+                494,
+                1257,
+                556
+            ],
+            "center": [
+                1235,
+                525
+            ],
+            "area": 2666,
+            "window_size": 0
+        },
+        {
+            "class_name": "2",
+            "confidence": 0.6727944016456604,
+            "coords": [
+                111,
+                15,
+                182,
+                91
+            ],
+            "center": [
+                146,
+                53
+            ],
+            "area": 5396,
+            "window_size": 0
+        },
+        {
+            "class_name": "22",
+            "confidence": 0.6666017770767212,
+            "coords": [
+                1209,
+                338,
+                1237,
+                400
+            ],
+            "center": [
+                1223,
+                369
+            ],
+            "area": 1736,
+            "window_size": 0
+        },
+        {
+            "class_name": "25",
+            "confidence": 0.6539313793182373,
+            "coords": [
+                1351,
+                344,
+                1390,
+                406
+            ],
+            "center": [
+                1370,
+                375
+            ],
+            "area": 2418,
+            "window_size": 0
+        },
+        {
+            "class_name": "21",
+            "confidence": 0.6502109169960022,
+            "coords": [
+                916,
+                487,
+                960,
+                548
+            ],
+            "center": [
+                938,
+                517
+            ],
+            "area": 2684,
+            "window_size": 0
+        },
+        {
+            "class_name": "4",
+            "confidence": 0.5454757213592529,
+            "coords": [
+                270,
+                304,
+                315,
+                360
+            ],
+            "center": [
+                292,
+                332
+            ],
+            "area": 2520,
+            "window_size": 0
+        },
+        {
+            "class_name": "20",
+            "confidence": 0.5349423885345459,
+            "coords": [
+                707,
+                485,
+                753,
+                552
+            ],
+            "center": [
+                730,
+                518
+            ],
+            "area": 3082,
+            "window_size": 0
+        },
+        {
+            "class_name": "2",
+            "confidence": 0.5127310752868652,
+            "coords": [
+                156,
+                301,
+                203,
+                353
+            ],
+            "center": [
+                179,
+                327
+            ],
+            "area": 2444,
+            "window_size": 0
+        },
+        {
+            "class_name": "5",
+            "confidence": 0.5047285556793213,
+            "coords": [
+                328,
+                308,
+                369,
+                364
+            ],
+            "center": [
+                348,
+                336
+            ],
+            "area": 2296,
+            "window_size": 0
+        },
+        {
+            "class_name": "8",
+            "confidence": 0.46488118171691895,
+            "coords": [
+                383,
+                561,
+                428,
+                622
+            ],
+            "center": [
+                405,
+                591
+            ],
+            "area": 2745,
+            "window_size": 0
+        },
+        {
+            "class_name": "1",
+            "confidence": 0.4527686536312103,
+            "coords": [
+                98,
+                299,
+                141,
+                352
+            ],
+            "center": [
+                119,
+                325
+            ],
+            "area": 2279,
+            "window_size": 0
+        },
+        {
+            "class_name": "2",
+            "confidence": 0.43162989616394043,
+            "coords": [
+                474,
+                2043,
+                489,
+                2071
+            ],
+            "center": [
+                481,
+                2057
+            ],
+            "area": 420,
+            "window_size": 0
+        },
+        {
+            "class_name": "16",
+            "confidence": 0.4244813919067383,
+            "coords": [
+                268,
+                476,
+                317,
+                536
+            ],
+            "center": [
+                292,
+                506
+            ],
+            "area": 2940,
+            "window_size": 0
+        },
+        {
+            "class_name": "1",
+            "confidence": 0.37813714146614075,
+            "coords": [
+                1747,
+                568,
+                1760,
+                608
+            ],
+            "center": [
+                1753,
+                588
+            ],
+            "area": 520,
+            "window_size": 0
+        },
+        {
+            "class_name": "1",
+            "confidence": 0.37418389320373535,
+            "coords": [
+                1518,
+                50,
+                1705,
+                183
+            ],
+            "center": [
+                1611,
+                116
+            ],
+            "area": 24871,
+            "window_size": 0
+        },
+        {
+            "class_name": "7",
+            "confidence": 0.3712901175022125,
+            "coords": [
+                436,
+                309,
+                480,
+                373
+            ],
+            "center": [
+                458,
+                341
+            ],
+            "area": 2816,
+            "window_size": 0
+        },
+        {
+            "class_name": "10",
+            "confidence": 0.3042309582233429,
+            "coords": [
+                1111,
+                335,
+                1120,
+                395
+            ],
+            "center": [
+                1115,
+                365
+            ],
+            "area": 540,
+            "window_size": 0
+        },
+        {
+            "class_name": "22",
+            "confidence": 0.30125948786735535,
+            "coords": [
+                1018,
+                504,
+                1058,
+                551
+            ],
+            "center": [
+                1038,
+                527
+            ],
+            "area": 1880,
+            "window_size": 0
+        },
+        {
+            "class_name": "2",
+            "confidence": 0.28493407368659973,
+            "coords": [
+                1697,
+                137,
+                1806,
+                186
+            ],
+            "center": [
+                1751,
+                161
+            ],
+            "area": 5341,
+            "window_size": 0
+        }
+    ]
+}

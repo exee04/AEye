@@ -36,18 +36,18 @@ class ButtonHAL:
         self.button2 = Button(22)
         self.button3 = Button(23)
         self.button4 = Button(24)
-        self.volUp   = Button(26)
+        self.volUp = Button(26)
         self.volDown = Button(16)
         self.mainBtn = Button(25)
 
         self.buttons = {
-            17: self.button1,
-            27: self.button2,
-            22: self.button3,
-            23: self.button4,
-            5:  self.volUp,
-            6:  self.volDown,
-            24: self.mainBtn
+            27: self.button1,
+            22: self.button2,
+            23: self.button3,
+            24: self.button4,
+            26:  self.volUp,
+            16:  self.volDown,
+            25: self.mainBtn
         }
 
         # Attach events for real hardware
@@ -90,7 +90,7 @@ class ButtonHAL:
         # print(f"[ButtonHAL] Button {pin} released after {duration:.2f}s")
 
         # Always publish release event
-        if pin == 24:
+        if pin == 25:
             asyncio.run_coroutine_threadsafe(
                 self.bus.publish("button_release", {"pin": pin, "duration": duration}),
                 self.loop

@@ -1,9 +1,20 @@
-Braille Detection Summary
-Total detections: 4
-Unique characters found: 3
+Braille Detection Summary - Enhanced Multi-Scale Approach
+============================================================
+Total detections: 5
+Unique characters: 5
+Confidence threshold: 0.3
+Window sizes used: [550]
 
-Detections:
- 1. C    - Confidence: 0.631 - Position: (151, 220, 189, 266)
- 2. A    - Confidence: 0.255 - Position: (32, 286, 71, 335)
- 3. C    - Confidence: 0.490 - Position: (603, 243, 645, 293)
- 4. H    - Confidence: 0.641 - Position: (182, 448, 215, 497)
+Character Distribution:
+  Q:  1 ( 20.0%)
+  C:  1 ( 20.0%)
+  R:  1 ( 20.0%)
+  P:  1 ( 20.0%)
+  Y:  1 ( 20.0%)
+
+Detailed Detections:
+  1. Q    - Conf: 0.542 - Pos: (997, 392, 1040, 447)
+  2. C    - Conf: 0.368 - Pos: (812, 381, 852, 434)
+  3. R    - Conf: 0.741 - Pos: (1046, 391, 1085, 449)
+  4. P    - Conf: 0.723 - Pos: (332, 511, 374, 567)
+  5. Y    - Conf: 0.622 - Pos: (1273, 553, 1317, 612)

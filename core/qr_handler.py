@@ -7,6 +7,7 @@ class QRHandler:
         self.state = state
         self.detector = cv2.QRCodeDetector()
         self._last_handled = None
+        self._frame_counter = 0  # Initialize frame counter
         self.bus.subscribe("frame_ready", self.onFrame)
 
     async def onFrame(self, data):
@@ -14,6 +15,11 @@ class QRHandler:
             return
         frame = data.get("frame")
         if frame is None:
+            return
+
+        # Increment counter and skip processing if not 4th frame
+        self._frame_counter = (self._frame_counter + 1) % 4
+        if self._frame_counter != 0:
             return
 
         text, points, _ = self.detector.detectAndDecode(frame)
