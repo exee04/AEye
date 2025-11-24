@@ -4,7 +4,10 @@ import asyncio
 class SystemState:
     STARTUP_TIMEOUT = 40
     REMINDER_INTERVAL = 15
-
+    MIN_VOLUME = 0 
+    MAX_VOLUME = 200
+    MIN_VOICE_SPEED = 100 
+    MAX_VOICE_SPEED = 280
     def __init__(self, bus):
         self.bus = bus
 
@@ -21,7 +24,7 @@ class SystemState:
 
         self.current_system_mode = "Initialization"
         self.current_network_state = "Unknown"
-
+        self.current_audio_mode = "VolumeMode"
         self.hasBraillePaper = False
 
         # Configs
@@ -138,4 +141,39 @@ class SystemState:
             except FileNotFoundError:
                 pass
             await asyncio.sleep(3)
+
+
+    async def AudioFunctionUp(self):
+        if self.current_audio_mode == "VolumeMode":
+            if (self.volume + 20) > self.MAX_VOLUME:
+                print("Already at max volume")
+            else:
+                self.volume = self.volume + 20 
+                print("Increased volume to " + str(self.volume))
+        if self.current_audio_mode == "VoiceMode":
+            if (self.voiceSpeed + 20) > self.MAX_VOICE_SPEED:
+                print("Already at max voice speed")
+            else:
+                self.voiceSpeed = self.voiceSpeed + 20
+                print("Increased voice speed to " + str(self.voiceSpeed))
+
+    async def AudioFunctionDown(self):
+        if self.current_audio_mode == "VolumeMode":
+            if (self.volume - 20) < self.MIN_VOLUME:
+                print("Already at min volume")
+            else:
+                self.volume = self.volume - 20 
+                print("Decreased volume to " + str(self.volume))
+        if self.current_audio_mode == "VoiceMode":
+            if (self.voiceSpeed - 20) < self.MIN_VOICE_SPEED:
+                print("Already at min voice speed")
+            else:
+                self.voiceSpeed = self.voiceSpeed - 20
+                print("Decreased voice speed to " + str(self.voiceSpeed))
+
+
+    async def AudioFunctionToggle(self):
+        self.current_audio_mode = "VolumeMode" if self.current_audio_mode != "VolumeMode" else "VoiceMode"
+        print(str(self.current_audio_mode))
+
 

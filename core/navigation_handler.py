@@ -1,5 +1,5 @@
-import os
 import threading
+import subprocess
 
 class NavigationHandler:
     def __init__(self, bus, state):
@@ -23,7 +23,11 @@ class NavigationHandler:
             await self.changeMode("NetworkMode")
         if pin == 24:
             self.state.current_system_mode = "Idle"
-
+        if pin == 16:
+            await self.state.AudioFunctionUp()
+        if pin == 26:
+            await self.state.AudioFunctionDown()
+            
     async def holdFunctions(self, data):
         if self.state.current_system_mode == "Initialization":
             return
@@ -40,9 +44,10 @@ class NavigationHandler:
             print("Disconnect current wifi")
         if pin == 24:
             print("Shutdown")
-        if pin == 6:
+        if pin == 16:
             print("Swap between volume and voice speed")
-        if pin == 5:
+            await self.state.AudioFunctionToggle()
+        if pin == 26:
             print("Swap between english and filipino")
 
     async def releaseFunctions(self, data):
@@ -62,7 +67,7 @@ class NavigationHandler:
         else:
             print(f"[NavigationHandler] Already in {self.state.current_system_mode}")
 
-    def TTS(text, self):
+    async def TTS(text, self):
         threading.Thread(target=lambda: subprocess.run([
             'espeak-ng',
             "-a", str(self.state.volume),

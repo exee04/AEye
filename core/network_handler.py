@@ -1,7 +1,6 @@
-import subprocess
 import asyncio
 import socket
-
+import subprocess
 
 class NetworkHandler:
     def __init__(self, bus, state):
@@ -19,19 +18,25 @@ class NetworkHandler:
         password = data.get("password")
         auth_type = data.get("type", "wpa")
 
+        if not ssid:
+            print("[NetworkHandler] ERROR: SSID is None or empty. Cannot connect.")
+            return
+
         print(f"[NetworkHandler] Connecting to SSID={ssid}, TYPE={auth_type}")
 
         try:
             cmd = ["nmcli", "device", "wifi", "connect", ssid]
             if password:
                 cmd += ["password", password]
+
             subprocess.run(cmd, check=True)
+
             print("[NetworkHandler] Connected successfully")
             await self.bus.publish("wifi_connected", {"ssid": ssid})
+
         except subprocess.CalledProcessError as e:
             print(f"[NetworkHandler] Connection failed: {e}")
-            await self.bus.publish("wifi_failed", {"ssid": ssid, "error": str(e)})
-
+            await self.bus.publish("wifi_failed", {"ssid": ssid})
     async def _monitor_network(self):
         """Periodically check connection and publish status."""
         while True:

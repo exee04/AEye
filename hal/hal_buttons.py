@@ -36,8 +36,8 @@ class ButtonHAL:
         self.button2 = Button(22)
         self.button3 = Button(23)
         self.button4 = Button(24)
-        self.volUp = Button(26)
-        self.volDown = Button(16)
+        self.volUp = Button(16)
+        self.volDown = Button(26)
         self.mainBtn = Button(25)
 
         self.buttons = {
@@ -45,8 +45,8 @@ class ButtonHAL:
             22: self.button2,
             23: self.button3,
             24: self.button4,
-            26:  self.volUp,
-            16:  self.volDown,
+            16:  self.volUp,
+            26:  self.volDown,
             25: self.mainBtn
         }
 

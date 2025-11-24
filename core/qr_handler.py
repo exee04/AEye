@@ -34,8 +34,9 @@ class QRHandler:
             return
 
         if not self.state.hasConnection:
-            if text.startswith("WIFI:"):
-                await self.bus.publish("wifi_connect", {"raw": text})
+            wifi_data = self.parse_wifi_qr(text)
+            await self.bus.publish("wifi_connect", wifi_data)
+
             return
 
         if self.state.hasConnection and not self.state.hasAccount:
@@ -45,3 +46,24 @@ class QRHandler:
         if self.state.hasConnection and self.state.hasAccount:
             self.state.needQR = False
             return
+
+    def parse_wifi_qr(self, raw: str):
+        # Remove "WIFI:" prefix
+        if raw.startswith("WIFI:"):
+            raw = raw[5:]
+
+        parts = raw.split(";")
+        parsed = {}
+
+        for p in parts:
+            if ":" in p:
+                k, v = p.split(":", 1)
+                parsed[k] = v
+
+        return {
+            "ssid": parsed.get("S"),
+            "password": parsed.get("P"),
+            "type": parsed.get("T", "WPA").lower(),
+            "hidden": parsed.get("H") == "true"
+        }
+
