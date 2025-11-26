@@ -1,314 +1,337 @@
 import cv2
-from ultralytics import YOLO
 import numpy as np
 import asyncio
-import os
-import glob
-from collections import defaultdict
 
+
+# ================================================================
+# Simple 6D Pose Kalman Filter (Rvec/Tvec smoothing)
+# ================================================================
+class PoseKalman:
+    def __init__(self):
+        # State: [rx, ry, rz, tx, ty, tz]
+        self.x = np.zeros((6,1))
+        self.P = np.eye(6) * 1.0
+
+        self.Q = np.eye(6) * 0.001      # process noise
+        self.R = np.eye(6) * 0.01       # measurement noise
+
+        self.initialized = False
+
+    def update(self, rvec, tvec, confidence):
+        if confidence <= 0:
+            return self.x[0:3].copy(), self.x[3:6].copy()
+
+        z = np.vstack([rvec.reshape(3,1), tvec.reshape(3,1)])
+        H = np.eye(6)
+        I = np.eye(6)
+
+        if not self.initialized:
+            self.x = z.copy()
+            self.initialized = True
+            return rvec, tvec
+
+        # Prediction
+        self.P = self.P + self.Q
+
+        # Innovation
+        y = z - H @ self.x
+        S = H @ self.P @ H.T + self.R
+        K = self.P @ H.T @ np.linalg.inv(S)
+
+        # Update
+        self.x = self.x + K @ y
+        self.P = (I - K @ H) @ self.P
+
+        # Output
+        r = self.x[0:3].reshape(3,1)
+        t = self.x[3:6].reshape(3,1)
+        return r, t
+
+
+
+# ================================================================
+# EDUCATION MODE V4 — NO FINGER TRACKING
+# ================================================================
 class EducationMode:
-    TARGET_IDS = {1, 5}
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    CAPTURE_DIR = os.path.join(PROJECT_ROOT, "captures")
-    os.makedirs(CAPTURE_DIR, exist_ok=True)
 
     def __init__(self, bus, state):
+
         self.bus = bus
         self.state = state
         self.bus.subscribe("frame_ready", self.onFrame)
-        self.bus.subscribe("enter_EducationMode", self.onEnter)
-        self.bus.subscribe("button_press", self.captureFrame)
-        self.bus.subscribe("camera_image_captured", self.onImageCaptured)
-        self.frame = None
-        self.debugFrame = None
-        self.hasVisibleMarker = False
-        self.captureFlag = False
 
-        # --- ArUco Setup ---
-        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-        self.parameters = cv2.aruco.DetectorParameters()
-        self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.parameters)
+        # --------------------------------------------------------
+        # Camera intrinsics (YOUR PI CAMERA V3 CALIBRATION)
+        # --------------------------------------------------------
+        self.K = np.array([
+            [9.98753294e+02, 0.0,            1.15982896e+03],
+            [0.0,            1.00373051e+03, 6.50888400e+02],
+            [0.0,            0.0,            1.0]
+        ], dtype=float)
 
-        # --- Camera Calibration Values ---
-        self.camera_matrix = np.array([
-            [9.98753294e+02, 0.0, 1.15982896e+03],
-            [0.0, 1.00373051e+03, 6.50888400e+02],
-            [0.0, 0.0, 1.0]
-        ])
-        self.dist_coeffs = np.array([[-0.05798983, 0.13855422, 0.00113712, 0.00015827, -0.09092239]])
+        self.D = np.array([[-0.089, 0.142, -0.001, -0.002, -0.132]], dtype=float)
 
-        # --- Marker Parameters ---
-        self.marker_length = 0.02
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        model_PAPER = os.path.join(project_root, "core", "modes", "paperDetectAI.pt")
-        
-        self.paperModel = YOLO(model_PAPER)
-        
-        # --- Adjustable Padding Parameters ---
-        self.padding_factor = 0.05  # Adjust this value (0.0 = no padding, 0.2 = 20% padding, etc.)
-        self.min_padding_pixels = 20  # Minimum padding in pixels regardless of image size
-        
-        self.x1 = self.y1 = self.x2 = self.y2 = None
+        # --------------------------------------------------------
+        # Paper geometry (meters)
+        # --------------------------------------------------------
+        self.PAPER_W = 0.2159      # 8.5"
+        self.PAPER_H = 0.2794      # 11"
+        self.MARKER  = 0.0254      # 1"
 
-    def save_frame(self, frame):
-        # 1. Find all existing images
-        pattern = os.path.join(self.CAPTURE_DIR, "img_*.png")
-        existing_files = glob.glob(pattern)
+        # --------------------------------------------------------
+        # ARUCO DICTIONARY
+        # --------------------------------------------------------
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(
+            cv2.aruco.DICT_4X4_50
+        )
+        self.detector = cv2.aruco.ArucoDetector(
+            self.aruco_dict,
+            cv2.aruco.DetectorParameters()
+        )
 
-        # 2. Determine next index
-        if existing_files:
-            indices = [
-                int(os.path.basename(f)[4:-4])  # img_XXXX.png → XXXX
-                for f in existing_files
-            ]
-            next_index = max(indices) + 1
+        # --------------------------------------------------------
+        # Pose filtering + persistence
+        # --------------------------------------------------------
+        self.kalman = PoseKalman()
+        self.last_rvec = None
+        self.last_tvec = None
+
+        # --------------------------------------------------------
+        # Mouse debug
+        # --------------------------------------------------------
+        self.mouse_xy = (0,0)
+        cv2.namedWindow("edu")
+        cv2.setMouseCallback("edu", self._on_mouse)
+
+
+    # =============================================================
+    # Mouse handler
+    # =============================================================
+    def _on_mouse(self, event, x, y, flags, param):
+        if event == cv2.EVENT_MOUSEMOVE:
+            self.mouse_xy = (x, y)
+
+
+    # =============================================================
+    # Preprocessing (CLAHE + sharpen + bilateral)
+    # =============================================================
+    def preprocess(self, gray):
+        clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8,8))
+        g = clahe.apply(gray)
+
+        # Sharpen
+        blurred = cv2.GaussianBlur(g, (0,0), 1.0)
+        sharp = cv2.addWeighted(g, 1.5, blurred, -0.5, 0)
+
+        # Bilateral to keep edges clean
+        filt = cv2.bilateralFilter(sharp, 7, 50, 50)
+
+        return filt
+
+
+    # =============================================================
+    # Multi-scale marker detection (robust close-up)
+    # =============================================================
+    def detect_multiscale(self, gray):
+
+        best_ids = None
+        best_corners = None
+        best_count = 0
+
+        for scale in [1.0, 0.60, 0.40]:
+            small = cv2.resize(gray, None, fx=scale, fy=scale)
+            corners, ids, _ = self.detector.detectMarkers(small)
+
+            if ids is None: 
+                continue
+
+            if len(ids) > best_count:
+                best_count = len(ids)
+                best_ids = ids
+                best_corners = [
+                    (c / scale) for c in corners
+                ]
+
+        return best_corners, best_ids
+
+
+    # =============================================================
+    # Define world coordinates for each marker's 4 corners
+    # =============================================================
+    def build_world_layout(self):
+        M = self.MARKER
+        W = self.PAPER_W
+        H = self.PAPER_H
+
+        return {
+            0: [ [0,0], [M,0], [M,M], [0,M] ],                             # TL
+            1: [ [W-M,0], [W,0], [W,M], [W-M,M] ],                         # TR
+            3: [ [0,H-M], [M,H-M], [M,H], [0,H] ],                         # BL
+            2: [ [W-M,H-M], [W,H-M], [W,H], [W-M,H] ]                      # BR
+        }
+
+
+    # =============================================================
+    # Robust plane pose estimation
+    # =============================================================
+    def estimate_plane_pose(self, corners, ids):
+
+        if ids is None or len(ids) == 0:
+            return None, None, 0.0
+
+        world_layout = self.build_world_layout()
+
+        # Gather 3D-2D correspondences
+        obj_pts = []
+        img_pts = []
+
+        for corner, mid in zip(corners, ids.flatten()):
+            if mid not in world_layout:
+                continue
+
+            pts2d = corner.reshape(4,2)
+            pts3d = world_layout[mid]
+
+            for k in range(4):
+                obj_pts.append([pts3d[k][0], pts3d[k][1], 0.0])
+                img_pts.append([pts2d[k,0], pts2d[k,1]])
+
+        obj_pts = np.array(obj_pts, float)
+        img_pts = np.array(img_pts, float)
+
+        # Marker count rules
+        count = len(ids)
+
+        if count >= 3:
+            conf = 1.0
+        elif count == 2:
+            conf = 0.6
+        elif count == 1:
+            conf = 0.3
         else:
-            next_index = 0
+            return None, None, 0.0
 
-        # 3. Build filename
-        filename = f"img_{next_index:04d}.png"
-        save_path = os.path.join(self.CAPTURE_DIR, filename)
+        if count >= 2:
+            ok, rvec, tvec = cv2.solvePnP(
+                obj_pts, img_pts, self.K, self.D,
+                flags=cv2.SOLVEPNP_ITERATIVE
+            )
+            if ok:
+                return rvec, tvec, conf
 
-        # 4. Save file
-        cv2.imwrite(save_path, frame)
-        print("Saved:", save_path)
+        # 1 marker or fallback to last known
+        if self.last_rvec is not None:
+            return self.last_rvec, self.last_tvec, 0.2
 
-        return save_path
+        return None, None, 0.0
 
-    async def onImageCaptured(self, data):
-        """Detect paper, set autofocus, and trigger a second capture for clarity."""
-        raw_frame = data.get("raw")
-        filtered_frame = data.get("filtered")
-        resolution = data.get("resolution", (0, 0))
-        print(f"[EducationMode] 📸 Frame captured at {resolution}")
 
-        if raw_frame is None or filtered_frame is None:
-            print("[EducationMode] ❌ Missing frame data from capture.")
-            print("[EducationMode] ℹ️ Tip: Align the camera directly above the paper for best accuracy.")
-            return
+    # =============================================================
+    # Pixel → World projection
+    # =============================================================
+    def pixel_to_world(self, px, py, rvec, tvec):
 
-        refocused = data.get("refocused", False)
+        invK = np.linalg.inv(self.K)
+        uv = np.array([[px],[py],[1.0]])
+        ray = invK @ uv
+        ray /= np.linalg.norm(ray)
 
-        if refocused:
-            print("[EducationMode] ✅ Refocused frame received. Proceeding with crop and analysis.")
-            if None in [self.x1, self.y1, self.x2, self.y2]:
-                print("[EducationMode] ⚠️ Missing paper coordinates; skipping crop.")
-                return
+        R,_ = cv2.Rodrigues(rvec)
+        cam_pos = -R.T @ tvec
+        ray_world = R.T @ ray
 
-            # Apply padding to create the final crop
-            padded_coords = self.apply_padding(self.x1, self.y1, self.x2, self.y2, filtered_frame.shape)
-            x1_pad, y1_pad, x2_pad, y2_pad = padded_coords
-            
-            frame_h, frame_w = filtered_frame.shape[:2]
-            x1 = int(max(0, min(x1_pad, frame_w - 1)))
-            y1 = int(max(0, min(y1_pad, frame_h - 1)))
-            x2 = int(max(0, min(x2_pad, frame_w)))
-            y2 = int(max(0, min(y2_pad, frame_h)))
+        if abs(ray_world[2,0]) < 1e-9:
+            return None
 
-            if x2 <= x1 or y2 <= y1:
-                print("[EducationMode] ⚠️ Cropping bounds invalid after refocus.")
-                return
+        lam = -cam_pos[2,0] / ray_world[2,0]
+        Pw = cam_pos + lam * ray_world
+        return Pw.reshape(3)
 
-            cropped = filtered_frame[y1:y2, x1:x2]
-            if cropped.size == 0:
-                print("[EducationMode] ⚠️ Cropped image is empty after refocus.")
-                return
 
-            # Save the cropped image for testing
-            self.save_frame(cropped)
-            print(f"[EducationMode] ✂️ Cropped size with padding: {cropped.shape}")
-            print(f"[EducationMode] 📏 Applied padding factor: {self.padding_factor}")
-            
-            # Here you can add your new braille detection logic later
-            print("[EducationMode] 🎯 Ready for new braille detection implementation")
-            
-            return
-
-        # Reset detection state for initial autofocus pass
-        self.x1 = self.y1 = self.x2 = self.y2 = None
-
-        # Step 1: Detect paper boundaries
-        paper_results = self.paperModel(raw_frame)
-        for r in paper_results:
-            for box in r.boxes.xyxy:
-                self.x1, self.y1, self.x2, self.y2 = [int(coord) for coord in box]
-                break
-            break
-
-        if None in [self.x1, self.y1, self.x2, self.y2]:
-            print("[EducationMode] ❌ No paper detected. Please adjust camera alignment.")
-            print("[EducationMode] ℹ️ Tip: Align the camera directly above the paper for best accuracy.")
-            return
-
-        frame_h, frame_w = raw_frame.shape[:2]
-
-        # Apply padding for autofocus region
-        padded_coords = self.apply_padding(self.x1, self.y1, self.x2, self.y2, raw_frame.shape)
-        x1_pad, y1_pad, x2_pad, y2_pad = padded_coords
-
-        # Clamp bounds to frame size
-        self.x1 = max(0, min(x1_pad, frame_w - 1))
-        self.y1 = max(0, min(y1_pad, frame_h - 1))
-        self.x2 = max(0, min(x2_pad, frame_w))
-        self.y2 = max(0, min(y2_pad, frame_h))
-
-        if self.x2 <= self.x1 or self.y2 <= self.y1:
-            print("[EducationMode] ❌ Invalid paper bounds detected.")
-            print("[EducationMode] ℹ️ Tip: Align the camera directly above the paper for best accuracy.")
-            return
-
-        print(f"[EducationMode] 📄 Paper detected: ({self.x1}, {self.y1}) → ({self.x2}, {self.y2})")
-        print(f"[EducationMode] 📏 Applied padding factor: {self.padding_factor}")
-
-        # Step 2: Compute normalized bounding box for autofocus
-        norm_x1 = self.x1 / frame_w
-        norm_y1 = self.y1 / frame_h
-        norm_x2 = self.x2 / frame_w
-        norm_y2 = self.y2 / frame_h
-
-        # Step 3: Publish focus region event
-        await self.bus.publish("camera_set_focus_region", {
-            "paper_borders": [float(norm_x1), float(norm_y1), float(norm_x2), float(norm_y2)]
-        })
-        print("[EducationMode] 🎯 Focus region published.")
-        print("[EducationMode] ℹ️ Tip: Align the camera directly above the paper for best accuracy.")
-
-        # Step 4: Wait for autofocus to stabilize, then re-capture
-        await asyncio.sleep(1.0)
-        print("[EducationMode] 🔁 Triggering second capture after AF lock...")
-        await self.bus.publish("camera_capture", {"refocused": True, "wait_focus": True})
-
-    def apply_padding(self, x1, y1, x2, y2, image_shape):
-        """Apply adjustable padding to the detected paper coordinates"""
-        frame_h, frame_w = image_shape[:2]
-        
-        # Calculate original dimensions
-        width = x2 - x1
-        height = y2 - y1
-        
-        # Calculate padding based on percentage of dimensions and minimum pixels
-        pad_x = max(int(width * self.padding_factor), self.min_padding_pixels)
-        pad_y = max(int(height * self.padding_factor), self.min_padding_pixels)
-        
-        # Apply padding
-        x1_pad = x1 - pad_x
-        y1_pad = y1 - pad_y
-        x2_pad = x2 + pad_x
-        y2_pad = y2 + pad_y
-        
-        # Clamp to image boundaries
-        x1_pad = max(0, x1_pad)
-        y1_pad = max(0, y1_pad)
-        x2_pad = min(frame_w, x2_pad)
-        y2_pad = min(frame_h, y2_pad)
-        
-        return x1_pad, y1_pad, x2_pad, y2_pad
-
-    def set_padding_factor(self, factor):
-        """Method to adjust padding factor dynamically"""
-        self.padding_factor = max(0.0, min(factor, 0.3))  # Clamp between 0.0 and 0.5 (50%)
-        print(f"[EducationMode] 🔧 Padding factor set to: {self.padding_factor}")
-
-    # ... (keep existing methods unchanged below this point)
+    # =============================================================
+    # Frame handler
+    # =============================================================
     async def onFrame(self, data):
+
         if self.state.current_system_mode != "EducationMode":
             return
 
-        if not self.state.hasConnection:
-            await self.offlineCamera(data)
+        frame = data["frame"]
+        disp = frame.copy()
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        gray = self.preprocess(gray)
+
+        # ------------------------------------------------------------
+        # Multi-scale detection
+        # ------------------------------------------------------------
+        corners, ids = self.detect_multiscale(gray)
+
+        if ids is None:
+            print("VISIBLE: []")
+            self.state.edu_preview_frame = disp
             return
 
-        if self.state.hasBraillePaper:
+        ids_list = ids.flatten().tolist()
+        print("VISIBLE:", sorted(ids_list))
+
+        # ------------------------------------------------------------
+        # Compute plane pose (robust)
+        # ------------------------------------------------------------
+        rvec, tvec, conf = self.estimate_plane_pose(corners, ids)
+
+        if rvec is None:
+            print("No valid pose yet.")
+            self.state.edu_preview_frame = disp
             return
 
-        self.frame = data.get("frame")
-        self.debugFrame = self.frame.copy()
+        # ------------------------------------------------------------
+        # Kalman filtering for rock-solid stability
+        # ------------------------------------------------------------
+        rvec_s, tvec_s = self.kalman.update(rvec, tvec, conf)
+        self.last_rvec = rvec_s
+        self.last_tvec = tvec_s
 
-        # Detect ArUco markers
-        corners, ids, _ = self.detector.detectMarkers(self.debugFrame)
+        R,_ = cv2.Rodrigues(rvec_s)
 
-        if ids is not None:
-            ids = ids.flatten()
-            for i, marker_id in enumerate(ids):
-                if marker_id in self.TARGET_IDS:
-                    cv2.aruco.drawDetectedMarkers(self.frame, [corners[i]], np.array([[ids[i]]]))
-                    self.hasVisibleMarker = True
-                    print(f"[OK] Found target marker ID: {marker_id}")
+        # ------------------------------------------------------------
+        # Paper outline projection
+        # ------------------------------------------------------------
+        paper = np.array([
+            [0,0,0],
+            [self.PAPER_W,0,0],
+            [self.PAPER_W,self.PAPER_H,0],
+            [0,self.PAPER_H,0]
+        ], float)
 
-                    # --- Pose Estimation ---
-                    obj_points = np.array([
-                        [-self.marker_length / 2,  self.marker_length / 2, 0],
-                        [ self.marker_length / 2,  self.marker_length / 2, 0],
-                        [ self.marker_length / 2, -self.marker_length / 2, 0],
-                        [-self.marker_length / 2, -self.marker_length / 2, 0]
-                    ], dtype=np.float32)
+        proj,_ = cv2.projectPoints(paper, rvec_s, tvec_s, self.K, self.D)
+        proj = proj.reshape(-1,2).astype(int)
 
-                    img_points = corners[i][0].astype(np.float32)
+        cv2.polylines(disp, [proj], True, (0,255,0), 3)
+        for p in proj:
+            cv2.circle(disp, tuple(p), 6, (0,255,255), -1)
 
-                    success, rvec, tvec = cv2.solvePnP(
-                        obj_points,
-                        img_points,
-                        self.camera_matrix,
-                        self.dist_coeffs
-                    )
-                    if success:
-                        cv2.drawFrameAxes(self.frame, self.camera_matrix, self.dist_coeffs, rvec, tvec, 0.01)
+        # ------------------------------------------------------------
+        # Debug: camera pose
+        # ------------------------------------------------------------
+        print("=== POSE ===")
+        print("R:\n", R)
+        print("t:\n", tvec_s.T)
 
-                        # Example 3D points in marker space (Braille dots)
-                        braille_points_3d = np.array([
-                            [0.03,  0.02, 0],
-                            [0.04,  0.01, 0],
-                            [0.05,  0.00, 0],
-                            [0.03, -0.01, 0]
-                        ], dtype=np.float32)
+        # ------------------------------------------------------------
+        # Mouse → world
+        # ------------------------------------------------------------
+        mx,my = self.mouse_xy
+        Pw = self.pixel_to_world(mx,my,rvec_s,tvec_s)
 
-                        # Project to image space
-                        img_points, _ = cv2.projectPoints(
-                            braille_points_3d,
-                            rvec,
-                            tvec,
-                            self.camera_matrix,
-                            self.dist_coeffs
-                        )
+        if Pw is not None:
+            txt = f"{Pw[0]:.3f}, {Pw[1]:.3f}"
+            cv2.putText(disp, txt, (mx+10,my+10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                        (0,255,0), 2)
 
-                        # Draw projected points
-                        for p in img_points:
-                            x, y = int(p[0][0]), int(p[0][1])
-                            cv2.circle(self.frame, (x, y), 4, (0, 0, 255), -1)
+        # ------------------------------------------------------------
+        # Output frame to preview system
+        # ------------------------------------------------------------
+        self.state.edu_preview_frame = disp
 
-                    return  # stop after first valid marker
-
-        self.hasVisibleMarker = False
-
-    async def captureFrame(self, data):
-        if self.state.current_system_mode != "EducationMode":
-            return
-
-        pin = data.get("pin")
-        if pin == 25:
-            if self.captureFlag:
-                return
-            if not self.state.hasConnection:
-                print("[EducationMode] You need an internet connection to scan the paper")
-            if self.state.hasBraillePaper:
-                print("There is already a paper")
-                return
-            if not self.hasVisibleMarker:
-                print("Braille paper with the marker must be visible")
-                pass
-
-            self.captureFlag = True
-            for i in range(1, 0, -1):
-                print(f"Capturing in {i}...")
-                await asyncio.sleep(1)
-
-            print("[Camera] Capturing frame...")
-            await self.bus.publish("camera_capture", {})
-            self.captureFlag = False
-
-    async def onEnter(self):
-        return
-
-    async def offlineCamera(self, data):
-        print("Offline Cam")
-        return

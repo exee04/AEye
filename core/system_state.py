@@ -26,7 +26,7 @@ class SystemState:
         self.current_network_state = "Unknown"
         self.current_audio_mode = "VolumeMode"
         self.hasBraillePaper = False
-
+        self.camera_calibration = None
         # Configs
         self.language = "en"
         self.volume = 100
