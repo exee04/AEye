@@ -1,137 +1,140 @@
+# api_handler.py
 import os
 import json
 import aiohttp
 from dotenv import load_dotenv
 import asyncio
 from google.cloud import speech
+from supabase import create_client, Client
+
 
 class APIHandler:
     def __init__(self, bus, state):
         self.bus = bus
         self.state = state
+
+        self.supabase: Client | None = None
         self.google_client = None
         self.client = None
-        self.supabase_client = None
-        self.runpod_client = None
-        self.is_initialized = False
+
         self.online = state.hasConnection
-        self.bus.subscribe("init_api", self.initialize)
+        self.initialized = False
+
+        bus.subscribe("init_api", self.initialize)
         bus.subscribe("network_lost", self.on_network_lost)
         bus.subscribe("network_restored", self.on_network_restored)
         bus.subscribe("speech_process", self.process_audio)
 
+    # ----------------------------------------------------------------------
     async def on_network_lost(self, _):
         self.online = False
-        await self.bus.publish("tts", {"text": "Connection lost. Switching to offline mode."})
-        print("[APIService] Internet connection lost.")
+        print("[APIHandler] Internet lost.")
 
     async def on_network_restored(self, _):
         self.online = True
-        await self.bus.publish("tts", {"text": "Internet connection restored."})
-        print("[APIService] Internet connection restored.")
+        print("[APIHandler] Internet restored.")
 
+    # ----------------------------------------------------------------------
     async def initialize(self):
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         if not self.state.hasConnection:
-            print("[APIHandler] No Connection, can't initiaize API Serivces")
+            print("[APIHandler] Cannot initialize APIs — no network.")
             return
-        load_dotenv()
 
-        print("[APIHandler] Network online initializing APIs...")
+        print("[APIHandler] Starting API initialization...")
+        load_dotenv()
 
         await self.__init_google_client()
         await self.__init_supabase_client()
         await self.test_all_connections()
 
+    # ----------------------------------------------------------------------
     async def __init_google_client(self):
         creds_path = os.getenv("GOOGLE_CLOUD_CREDENTIALS")
         if not creds_path or not os.path.exists(creds_path):
-            print("[APIHandler] ⚠️ Missing GOOGLE_CLOUD_CREDENTIALS.")
+            print("[APIHandler] ⚠ Missing GOOGLE_CLOUD_CREDENTIALS file.")
             return
+
         with open(creds_path, "r") as f:
-            print(str(f))
             self.google_client = json.load(f)
             self.client = speech.SpeechClient()
-        print("[APIHandler] ✅ Google credentials loaded from file.")
 
+        print("[APIHandler] ✅ Google Cloud STT initialized.")
+
+    # ----------------------------------------------------------------------
     async def __init_supabase_client(self):
         creds_path = os.getenv("SUPABASE_CREDENTIALS")
         if not creds_path or not os.path.exists(creds_path):
-            print("[APIHandler] ⚠️ Missing SUPABASE_CLIENT.")
+            print("[APIHandler] ⚠ Missing SUPABASE_CREDENTIALS file.")
             return
+
         with open(creds_path, "r") as f:
-            self.supabase_client = json.load(f)
-        print("[APIHandler] ✅ Supabase credentials loaded from file.")
+            creds = json.load(f)
 
-    async def __init_runpod_client(self):
-        # No runpod client yet
-        return
+        url = creds.get("SUPABASE_URL")
+        key = creds.get("SUPABASE_KEY")
 
+        if not url or not key:
+            print("[APIHandler] ❌ Supabase creds invalid.")
+            return
+
+        try:
+            self.supabase = create_client(url, key)
+            print("[APIHandler] ✅ Supabase client initialized.")
+
+            # IMPORTANT: Notify modules (EducationMode)
+            await self.bus.publish("supabase_ready", {"client": self.supabase})
+
+        except Exception as e:
+            print("[APIHandler] ❌ Supabase creation error:", e)
+
+    # ----------------------------------------------------------------------
     async def test_all_connections(self):
-        """Run lightweight connectivity checks."""
-        print("[APIHandler] 🔍 Testing API connections...")
+        print("[APIHandler] 🔍 Running connectivity tests...")
+
         google_ok = await self.test_google_connection()
         supabase_ok = await self.test_supabase_connection()
-        #runpod_ok = await self.test_runpod_connection()
 
-        if all([google_ok, supabase_ok]):
-            print("[APIHandler] ✅ All APIs reachable.")
-            self.is_initialized = True
+        if google_ok and supabase_ok:
+            self.initialized = True
+            print("[APIHandler] ✅ All external APIs online.")
         else:
-            print("[APIHandler] ⚠️ Some API checks failed.")
+            print("[APIHandler] ⚠ Some connections failed.")
 
+    # ----------------------------------------------------------------------
     async def test_google_connection(self):
-        print("[APIHandler] 🧠 Testing Google Cloud connection...")
+        print("[APIHandler] Testing Google Cloud...")
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get("https://www.google.com/generate_204", timeout=5) as r:
-                    print(f"[APIHandler] → HTTP {r.status}")
-                    if r.status in (200, 204):
-                        print("[APIHandler] ✅ Google reachable.")
-                        return True
-        except Exception as e:
-            print(f"[APIHandler] ❌ Google unreachable: {type(e).__name__} - {e}")
-        print("[APIHandler] ⚠️ Google API test failed.")
-        return False
+            async with aiohttp.ClientSession() as s:
+                async with s.get("https://www.google.com/generate_204", timeout=5) as r:
+                    return r.status in (200, 204)
+        except Exception:
+            return False
 
+    # ----------------------------------------------------------------------
     async def test_supabase_connection(self):
+        if not self.supabase:
+            return False
+
         try:
-            if not self.supabase_client:
-                return False
-            url = self.supabase_client.get("SUPABASE_URL")
-            if not isinstance(url, str):
-                print("[APIHandler] ⚠️ Supabase URL invalid:", url)
-                return False
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=3) as r:
-                    if r.status < 500:
-                        print("[APIHandler] ✅ Supabase reachable.")
-                        return True
+            # simply ping the table metadata
+            _ = self.supabase.table("performance_history").select("*").limit(1).execute()
+            print("[APIHandler] ✅ Supabase reachable.")
+            return True
         except Exception as e:
-            print(f"[APIHandler] Supabase unreachable: {e}")
-        return False
+            print("[APIHandler] ❌ Supabase unreachable:", e)
+            return False
 
-    #    async def test_runpod_connection(self):
-#        """Optional: Test runpod.io API."""
-#        try:
-#            async with aiohttp.ClientSession() as session:
-#                async with session.get("https://api.runpod.io", timeout=3) as r:
-#                    if r.status == 200:
-#                        print("[APIHandler] Runpod API reachable.")
-#                        return True
-#        except Exception as e:
-#            print(f"[APIHandler] Runpod API unreachable: {e}")
-#        return False
-
+    # ----------------------------------------------------------------------
     async def process_audio(self, data):
         """Send audio file to Google STT"""
-        file_path = data.get("file")
-        rate = data.get("sample_rate", 16000)
-        if not file_path:
-            print("[GoogleSpeechService] No file provided")
+        if not self.client:
+            print("[APIHandler] No Google client available.")
             return
 
-        print(f"[GoogleSpeechService] Processing file: {file_path} (rate={rate})")
+        file_path = data.get("file")
+        if not file_path:
+            print("[APIHandler] No audio file provided.")
+            return
 
         try:
             with open(file_path, "rb") as audio_file:
@@ -140,11 +143,10 @@ class APIHandler:
             audio = speech.RecognitionAudio(content=content)
             config = speech.RecognitionConfig(
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-                sample_rate_hertz=rate,
-                language_code=self.state.language  # "en-US" or "fil-PH"
+                sample_rate_hertz=data.get("sample_rate", 16000),
+                language_code=self.state.language
             )
 
-            # Run STT in background thread to not block asyncio loop
             response = await asyncio.to_thread(
                 self.client.recognize, config=config, audio=audio
             )
@@ -154,14 +156,13 @@ class APIHandler:
                 if response.results else ""
             )
 
-            print(f"[GoogleSpeechService] Transcript: '{transcript}'")
             await self.bus.publish("speech_result", {
                 "file": file_path,
                 "text": transcript
             })
 
         except Exception as e:
-            print(f"[GoogleSpeechService] Error: {e}")
+            print("[APIHandler] STT Error:", e)
             await self.bus.publish("speech_result", {
                 "file": file_path,
                 "text": ""
